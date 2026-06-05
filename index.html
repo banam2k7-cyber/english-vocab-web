@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Destination B1 Vocabulary Trainer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="Danh sách unit">
+        <div class="brand">
+          <span class="brand-mark">B1</span>
+          <div>
+            <strong>Vocabulary Trainer</strong>
+            <span>PDF study companion</span>
+          </div>
+        </div>
+
+        <label class="unit-picker">
+          Hôm nay học unit
+          <select id="unitSelect"></select>
+        </label>
+
+        <div class="unit-list" id="unitList"></div>
+      </aside>
+
+      <main class="workspace">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Chọn unit, học từ, rồi kiểm tra ngay</p>
+            <h1 id="unitTitle">Unit 1</h1>
+            <p id="unitDescription">
+              Chọn một unit ở bên trái để bắt đầu học từ vựng.
+            </p>
+            <div class="hero-actions">
+              <button class="primary-button" id="startTestButton" type="button">
+                Làm bài test unit này
+              </button>
+              <button class="ghost-button" id="showLearnButton" type="button">
+                Xem danh sách từ
+              </button>
+            </div>
+          </div>
+          <img
+            class="hero-image"
+            src="assets/study-desk.png"
+            alt="Bàn học với flashcard từ vựng tiếng Anh"
+          />
+        </section>
+
+        <section class="dashboard" aria-label="Tổng quan tiến độ">
+          <article>
+            <span>Số từ trong unit</span>
+            <strong id="wordCount">0</strong>
+          </article>
+          <article>
+            <span>Đã thuộc</span>
+            <strong id="masteredCount">0</strong>
+          </article>
+          <article>
+            <span>Điểm gần nhất</span>
+            <strong id="scoreCount">0/0</strong>
+          </article>
+          <article>
+            <span>Độ sẵn sàng</span>
+            <strong id="readyPercent">0%</strong>
+          </article>
+        </section>
+
+        <nav class="mode-tabs" aria-label="Chế độ học">
+          <button class="active" id="pdfTab" type="button">PDF sách</button>
+          <button id="learnTab" type="button">Học từ</button>
+          <button id="testTab" type="button">Kiểm tra</button>
+          <button id="addTab" type="button">Thêm từ</button>
+          <button id="importTab" type="button">Import</button>
+        </nav>
+
+        <section class="panel active" id="pdfPanel" aria-label="Mở PDF gốc">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Original book</p>
+              <h2>Mở file PDF gốc trong app</h2>
+            </div>
+            <label class="file-button">
+              Chọn PDF
+              <input id="pdfInput" type="file" accept="application/pdf" />
+            </label>
+          </div>
+          <p class="panel-note" id="pdfFileName">
+            Chọn file `Destination-B1.pdf` từ máy của bạn. App chỉ mở file gốc để học,
+            không chép lại toàn bộ nội dung sách thành HTML.
+          </p>
+          <iframe
+            class="pdf-frame"
+            id="pdfFrame"
+            title="Destination B1 PDF viewer"
+          ></iframe>
+        </section>
+
+        <section class="panel" id="learnPanel" aria-label="Từ vựng trong unit">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Vocabulary list</p>
+              <h2 id="learnHeading">Từ vựng của unit</h2>
+            </div>
+            <div class="search-box">
+              <input id="searchInput" type="search" placeholder="Tìm từ hoặc nghĩa..." />
+            </div>
+          </div>
+          <div class="word-table" id="wordTable"></div>
+        </section>
+
+        <section class="panel" id="testPanel" aria-label="Bài kiểm tra từ vựng">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Writing test</p>
+              <h2>Nhìn nghĩa tiếng Việt, viết từ tiếng Anh</h2>
+            </div>
+            <button class="ghost-button" id="resetTestButton" type="button">Làm lại</button>
+          </div>
+
+          <div class="test-layout">
+            <article class="question-card" id="questionCard">
+              <div class="question-top">
+                <span id="questionIndex">Câu 1/1</span>
+                <span id="questionScore">0 đúng</span>
+              </div>
+              <span class="meaning-label">Nghĩa tiếng Việt</span>
+              <h3 id="questionMeaning">Bấm làm bài test để bắt đầu.</h3>
+              <p id="questionMeta" class="question-meta"></p>
+              <form class="answer-form" id="answerForm">
+                <input
+                  id="answerInput"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Nhập đáp án tiếng Anh"
+                  required
+                />
+                <button class="primary-button" type="submit">Kiểm tra</button>
+              </form>
+              <p class="feedback" id="feedback" aria-live="polite"></p>
+              <div class="question-actions">
+                <button class="ghost-button" id="skipButton" type="button">Bỏ qua</button>
+                <button class="primary-button hidden" id="nextButton" type="button">
+                  Câu tiếp
+                </button>
+              </div>
+            </article>
+
+            <aside class="test-summary">
+              <h3>Thiết lập bài test</h3>
+              <label class="check-row">
+                <input id="onlyUnmasteredInput" type="checkbox" />
+                Chỉ kiểm tra từ chưa thuộc
+              </label>
+              <label class="check-row">
+                <input id="shuffleInput" type="checkbox" checked />
+                Xáo trộn thứ tự câu hỏi
+              </label>
+              <button class="primary-button" id="startTestSideButton" type="button">
+                Bắt đầu
+              </button>
+            </aside>
+          </div>
+
+          <div class="result-panel hidden" id="resultPanel">
+            <h3>Kết quả</h3>
+            <p id="resultSummary"></p>
+            <div class="result-list" id="resultList"></div>
+            <button class="primary-button" id="retryWrongButton" type="button">
+              Luyện lại câu sai
+            </button>
+          </div>
+        </section>
+
+        <section class="panel" id="addPanel" aria-label="Thêm từ vào unit">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Custom vocabulary</p>
+              <h2>Thêm từ vào unit đang học</h2>
+            </div>
+            <button class="ghost-button" id="clearCustomButton" type="button">
+              Xóa từ tự thêm
+            </button>
+          </div>
+
+          <form class="add-form" id="wordForm">
+            <label>
+              Unit
+              <select id="unitInput"></select>
+            </label>
+            <label>
+              Từ tiếng Anh
+              <input id="englishInput" type="text" placeholder="achievement" required />
+            </label>
+            <label>
+              Nghĩa tiếng Việt
+              <input id="vietnameseInput" type="text" placeholder="thành tựu" required />
+            </label>
+            <label>
+              Loại từ
+              <input id="typeInput" type="text" placeholder="noun / verb / phrase" />
+            </label>
+            <label class="wide">
+              Ví dụ
+              <input
+                id="exampleInput"
+                type="text"
+                placeholder="Passing the exam was a big achievement."
+              />
+            </label>
+            <button class="primary-button" type="submit">Thêm vào unit</button>
+          </form>
+        </section>
+
+        <section class="panel" id="importPanel" aria-label="Import dữ liệu học">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Unit data</p>
+              <h2>Import dữ liệu luyện tập hợp lệ</h2>
+            </div>
+            <button class="ghost-button" id="exportDataButton" type="button">
+              Xuất dữ liệu hiện tại
+            </button>
+          </div>
+          <p class="panel-note">
+            Dán JSON theo mẫu bên dưới. Dữ liệu sẽ thay cho bộ unit hiện tại và được lưu
+            trong trình duyệt.
+          </p>
+          <pre class="json-sample">[
+  {
+    "number": 1,
+    "title": "Tên unit",
+    "description": "Mô tả ngắn",
+    "words": [
+      {
+        "english": "achievement",
+        "vietnamese": "thành tựu",
+        "type": "noun",
+        "example": "Passing the exam was a big achievement."
+      }
+    ]
+  }
+]</pre>
+          <textarea
+            class="import-box"
+            id="importTextarea"
+            placeholder="Dán JSON dữ liệu unit vào đây..."
+          ></textarea>
+          <div class="import-actions">
+            <button class="primary-button" id="importButton" type="button">Import dữ liệu</button>
+            <button class="ghost-button" id="clearImportedButton" type="button">
+              Xóa dữ liệu import
+            </button>
+          </div>
+          <p class="feedback" id="importStatus" aria-live="polite"></p>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
