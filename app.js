@@ -547,9 +547,9 @@ function importUnits() {
     localStorage.setItem(STORAGE_KEYS.selectedUnit, state.unitId);
     initUnitControls();
     renderAll();
-    els.importStatus.textContent = `Đã import ${importedUnit.words.length} mục vào Unit ${importedUnit.number}. Các unit khác vẫn được giữ nguyên.`;
+    els.importStatus.textContent = `Đã import ${importedUnit.words.length} mục vào Unit ${importedUnit.number}. Chọn unit khác ở ô "Import vào unit" để nhập bài tiếp theo.`;
     els.importStatus.className = "feedback correct";
-    switchPanel("learn");
+    switchPanel("import");
   } catch (error) {
     els.importStatus.textContent = `Import lỗi: ${error.message}`;
     els.importStatus.className = "feedback wrong";
