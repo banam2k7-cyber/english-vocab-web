@@ -85,6 +85,7 @@ const els = {
   aiProviderInput: document.querySelector("#aiProviderInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
   aiModelInput: document.querySelector("#aiModelInput"),
+  aiProxyUrlInput: document.querySelector("#aiProxyUrlInput"),
   imageDropZone: document.querySelector("#imageDropZone"),
   imageFileInput: document.querySelector("#imageFileInput"),
   imagePreview: document.querySelector("#imagePreview"),
@@ -778,7 +779,12 @@ async function aiImportImage() {
   try {
     const responseText =
       provider === "nvidia"
-        ? await callNvidiaVisionImport({ apiKey, model, imageDataUrl: state.aiImageDataUrl })
+        ? await callNvidiaVisionImport({
+            apiKey,
+            model,
+            imageDataUrl: state.aiImageDataUrl,
+            proxyUrl: els.aiProxyUrlInput.value.trim(),
+          })
         : await callOpenAiVisionImport({ apiKey, model, imageDataUrl: state.aiImageDataUrl });
     const aiUnit = JSON.parse(responseText);
     const importedUnit = importParsedData(aiUnit, els.importUnitInput.value || state.unitId);
@@ -853,37 +859,53 @@ async function callOpenAiVisionImport({ apiKey, model, imageDataUrl }) {
   return extractOpenAiResponseText(data);
 }
 
-async function callNvidiaVisionImport({ apiKey, model, imageDataUrl }) {
-  const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.1,
-      max_tokens: 2048,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: getAiPrompt(),
+async function callNvidiaVisionImport({ apiKey, model, imageDataUrl, proxyUrl }) {
+  const payload = {
+    model,
+    temperature: 0.1,
+    max_tokens: 2048,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: getAiPrompt(),
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: imageDataUrl,
             },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageDataUrl,
-              },
-            },
-          ],
-        },
-      ],
-    }),
-  });
+          },
+        ],
+      },
+    ],
+  };
+  const endpoint = proxyUrl || "https://integrate.api.nvidia.com/v1/chat/completions";
+  const headers = { "Content-Type": "application/json" };
+  const body = proxyUrl ? { apiKey, payload } : payload;
+
+  if (!proxyUrl) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    if (!proxyUrl) {
+      throw new Error(
+        "NVIDIA chặn request trực tiếp từ trình duyệt (CORS). Hãy dùng Proxy URL cho NVIDIA."
+      );
+    }
+    throw error;
+  }
 
   const data = await response.json();
   if (!response.ok) {
@@ -895,7 +917,7 @@ async function callNvidiaVisionImport({ apiKey, model, imageDataUrl }) {
     throw new Error("Không đọc được nội dung từ phản hồi NVIDIA.");
   }
 
-  return stripJsonFence(content);
+  return stripJsonFence(typeof content === "string" ? content : JSON.stringify(content));
 }
 
 function getUnitImportJsonSchema() {

@@ -660,6 +660,10 @@ h3 {
   font-weight: 900;
 }
 
+.ai-grid .wide-field {
+  grid-column: 1 / -1;
+}
+
 .image-drop-zone {
   display: grid;
   gap: 8px;

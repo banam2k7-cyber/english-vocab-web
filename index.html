@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Destination B1 Vocabulary Trainer</title>
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <div class="app">
@@ -260,6 +260,14 @@
                 Model
                 <input id="aiModelInput" type="text" value="gpt-4.1-mini" />
               </label>
+              <label class="wide-field">
+                Proxy URL cho NVIDIA nếu bị lỗi CORS
+                <input
+                  id="aiProxyUrlInput"
+                  type="url"
+                  placeholder="https://your-worker.your-subdomain.workers.dev"
+                />
+              </label>
             </div>
             <div class="image-drop-zone" id="imageDropZone" tabindex="0">
               <strong>Dán ảnh vào đây</strong>
@@ -315,6 +323,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
   </body>
 </html>
