@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Destination B1 Vocabulary Trainer</title>
-    <link rel="stylesheet" href="styles.css?v=8" />
+    <link rel="stylesheet" href="styles.css?v=9" />
   </head>
   <body>
     <div class="app">
@@ -30,6 +30,14 @@
       </aside>
 
       <main class="workspace">
+        <nav class="mode-tabs top-bar" aria-label="Chế độ học">
+          <button class="active" id="pdfTab" type="button">PDF sách</button>
+          <button id="learnTab" type="button">Học từ</button>
+          <button id="testTab" type="button">Kiểm tra</button>
+          <button id="addTab" type="button">Thêm từ</button>
+          <button id="importTab" type="button">Import</button>
+        </nav>
+
         <section class="hero">
           <div class="hero-copy">
             <p class="eyebrow">Chọn unit, học từ, rồi kiểm tra ngay</p>
@@ -71,14 +79,6 @@
             <strong id="readyPercent">0%</strong>
           </article>
         </section>
-
-        <nav class="mode-tabs" aria-label="Chế độ học">
-          <button class="active" id="pdfTab" type="button">PDF sách</button>
-          <button id="learnTab" type="button">Học từ</button>
-          <button id="testTab" type="button">Kiểm tra</button>
-          <button id="addTab" type="button">Thêm từ</button>
-          <button id="importTab" type="button">Import</button>
-        </nav>
 
         <section class="panel active" id="pdfPanel" aria-label="Mở PDF gốc">
           <div class="panel-heading">
@@ -327,6 +327,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
   </body>
 </html>

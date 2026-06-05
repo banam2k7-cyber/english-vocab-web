@@ -673,6 +673,7 @@ function buildUnitForImport(parsed, targetUnit) {
 
   const importedWords = sourceWords
     .map((word) => shapeWord(word, targetUnit.id))
+    .map(removeInvalidExample)
     .filter((word) => word.english && word.vietnamese);
 
   if (!importedWords.length) {
@@ -685,6 +686,29 @@ function buildUnitForImport(parsed, targetUnit) {
     description: sourceUnit?.description || targetUnit.description,
     words: importedWords,
   };
+}
+
+function removeInvalidExample(word) {
+  if (!word.example || !word.english) {
+    return word;
+  }
+
+  const example = normalizeForExampleCheck(word.example);
+  const target = normalizeForExampleCheck(word.english);
+
+  if (target && example.includes(target)) {
+    return { ...word, example: "" };
+  }
+
+  return word;
+}
+
+function normalizeForExampleCheck(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function exportCurrentData() {
@@ -826,7 +850,9 @@ function getAiPrompt() {
     "The first character of your response must be { and the last character must be }.",
     "Return only valid JSON with this exact shape:",
     '{"title":"string","description":"string","words":[{"english":"string","vietnamese":"string","type":"string","phonetic":"string","example":"string"}]}',
-    "Use concise Vietnamese meanings. Leave phonetic/example as an empty string if not visible.",
+    "For every item, create one short natural English example sentence.",
+    "The example sentence must NOT contain the target english word or phrase, and must NOT contain an obvious inflected form of it.",
+    "Use concise Vietnamese meanings. Leave phonetic as an empty string if not visible, but do not leave example empty.",
   ].join(" ");
 }
 
