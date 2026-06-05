@@ -113,7 +113,8 @@ function saveJson(key, value) {
 function applyTheme(theme) {
   document.body.dataset.theme = theme;
   localStorage.setItem(STORAGE_KEYS.theme, theme);
-  els.themeToggle.textContent = theme === "dark" ? "Chế độ sáng" : "Chế độ tối";
+  els.themeToggle.textContent = theme === "dark" ? "☀" : "☾";
+  els.themeToggle.title = theme === "dark" ? "Chế độ sáng" : "Chế độ tối";
 }
 
 function toggleTheme() {
