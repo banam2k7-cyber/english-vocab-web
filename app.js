@@ -82,6 +82,7 @@ const els = {
   exportDataButton: document.querySelector("#exportDataButton"),
   clearImportedButton: document.querySelector("#clearImportedButton"),
   importStatus: document.querySelector("#importStatus"),
+  aiProviderInput: document.querySelector("#aiProviderInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
   aiModelInput: document.querySelector("#aiModelInput"),
   imageDropZone: document.querySelector("#imageDropZone"),
@@ -754,8 +755,9 @@ function handleImagePaste(event) {
 }
 
 async function aiImportImage() {
+  const provider = els.aiProviderInput.value;
   const apiKey = els.aiApiKeyInput.value.trim();
-  const model = els.aiModelInput.value.trim() || "gpt-4.1-mini";
+  const model = els.aiModelInput.value.trim() || getDefaultAiModel(provider);
 
   if (!apiKey) {
     els.aiImportStatus.textContent = "Bạn cần nhập OpenAI API key.";
@@ -774,71 +776,10 @@ async function aiImportImage() {
   els.aiImportStatus.className = "feedback";
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text:
-                  "Read the vocabulary image. Extract only vocabulary items, phrasal verbs, prepositional phrases, word formation items, definitions if visible, part of speech, and phonetic transcription if visible. Translate meanings into Vietnamese. Return structured JSON for one unit. Use concise Vietnamese meanings. If a definition is visible, put it in example or description only when useful.",
-              },
-              {
-                type: "input_image",
-                image_url: state.aiImageDataUrl,
-                detail: "high",
-              },
-            ],
-          },
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: "unit_vocabulary_import",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: ["title", "description", "words"],
-              properties: {
-                title: { type: "string" },
-                description: { type: "string" },
-                words: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["english", "vietnamese", "type", "phonetic", "example"],
-                    properties: {
-                      english: { type: "string" },
-                      vietnamese: { type: "string" },
-                      type: { type: "string" },
-                      phonetic: { type: "string" },
-                      example: { type: "string" },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error?.message || "OpenAI API trả lỗi.");
-    }
-
-    const responseText = extractResponseText(data);
+    const responseText =
+      provider === "nvidia"
+        ? await callNvidiaVisionImport({ apiKey, model, imageDataUrl: state.aiImageDataUrl })
+        : await callOpenAiVisionImport({ apiKey, model, imageDataUrl: state.aiImageDataUrl });
     const aiUnit = JSON.parse(responseText);
     const importedUnit = importParsedData(aiUnit, els.importUnitInput.value || state.unitId);
     els.importTextarea.value = JSON.stringify(aiUnit, null, 2);
@@ -853,7 +794,138 @@ async function aiImportImage() {
   }
 }
 
-function extractResponseText(data) {
+function getDefaultAiModel(provider) {
+  return provider === "nvidia" ? "meta/llama-3.2-11b-vision-instruct" : "gpt-4.1-mini";
+}
+
+function getAiPrompt() {
+  return [
+    "Read the vocabulary image.",
+    "Extract only vocabulary items, phrasal verbs, prepositional phrases, word formation items, definitions if visible, part of speech, and phonetic transcription if visible.",
+    "Translate meanings into Vietnamese.",
+    "Return only valid JSON with this shape:",
+    '{"title":"string","description":"string","words":[{"english":"string","vietnamese":"string","type":"string","phonetic":"string","example":"string"}]}',
+    "Use concise Vietnamese meanings. Leave phonetic/example as an empty string if not visible.",
+  ].join(" ");
+}
+
+async function callOpenAiVisionImport({ apiKey, model, imageDataUrl }) {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: getAiPrompt(),
+            },
+            {
+              type: "input_image",
+              image_url: imageDataUrl,
+              detail: "high",
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "unit_vocabulary_import",
+          strict: true,
+          schema: getUnitImportJsonSchema(),
+        },
+      },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || "OpenAI API trả lỗi.");
+  }
+
+  return extractOpenAiResponseText(data);
+}
+
+async function callNvidiaVisionImport({ apiKey, model, imageDataUrl }) {
+  const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.1,
+      max_tokens: 2048,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: getAiPrompt(),
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageDataUrl,
+              },
+            },
+          ],
+        },
+      ],
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || "NVIDIA API trả lỗi.");
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("Không đọc được nội dung từ phản hồi NVIDIA.");
+  }
+
+  return stripJsonFence(content);
+}
+
+function getUnitImportJsonSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["title", "description", "words"],
+    properties: {
+      title: { type: "string" },
+      description: { type: "string" },
+      words: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["english", "vietnamese", "type", "phonetic", "example"],
+          properties: {
+            english: { type: "string" },
+            vietnamese: { type: "string" },
+            type: { type: "string" },
+            phonetic: { type: "string" },
+            example: { type: "string" },
+          },
+        },
+      },
+    },
+  };
+}
+
+function extractOpenAiResponseText(data) {
   if (data.output_text) {
     return data.output_text;
   }
@@ -867,6 +939,14 @@ function extractResponseText(data) {
   }
 
   throw new Error("Không đọc được JSON từ phản hồi AI.");
+}
+
+function stripJsonFence(value) {
+  return value
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
 }
 
 function clearImportedData() {
@@ -953,6 +1033,9 @@ function bindEvents() {
   });
   els.clearImageButton.addEventListener("click", clearAiImage);
   els.aiImportButton.addEventListener("click", aiImportImage);
+  els.aiProviderInput.addEventListener("change", () => {
+    els.aiModelInput.value = getDefaultAiModel(els.aiProviderInput.value);
+  });
 }
 
 async function init() {

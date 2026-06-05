@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Destination B1 Vocabulary Trainer</title>
-    <link rel="stylesheet" href="styles.css?v=5" />
+    <link rel="stylesheet" href="styles.css?v=6" />
   </head>
   <body>
     <div class="app">
@@ -241,12 +241,19 @@
             </div>
             <div class="ai-grid">
               <label>
-                OpenAI API key
+                Nhà cung cấp AI
+                <select id="aiProviderInput">
+                  <option value="openai">OpenAI</option>
+                  <option value="nvidia">NVIDIA NIM</option>
+                </select>
+              </label>
+              <label>
+                API key
                 <input
                   id="aiApiKeyInput"
                   type="password"
                   autocomplete="off"
-                  placeholder="sk-..."
+                  placeholder="sk-... hoặc nvapi-..."
                 />
               </label>
               <label>
@@ -308,6 +315,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
   </body>
 </html>

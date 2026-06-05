@@ -649,7 +649,7 @@ h3 {
 
 .ai-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: 180px minmax(0, 1fr) 280px;
   gap: 12px;
 }
 
