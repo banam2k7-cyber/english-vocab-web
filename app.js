@@ -15,12 +15,31 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
-const DEFAULT_NVIDIA_MODEL = "meta/llama-3.2-90b-vision-instruct";
+const DEFAULT_NVIDIA_MODEL = "meta/llama-3.2-11b-vision-instruct";
 const NVIDIA_DIRECT_ENDPOINTS = {
   "meta/llama-4-maverick-17b-128e-instruct":
     "https://integrate.api.nvidia.com/v1/meta/llama-4-maverick-17b-128e-instruct",
 };
-const MAX_AI_IMAGE_EDGE = 1400;
+const MAX_AI_IMAGE_EDGE = 1100;
+
+const AI_MODEL_PRESETS = {
+  openai: [
+    { value: "gpt-4.1-mini", label: "GPT-4.1 mini - cân bằng" },
+    { value: "gpt-4.1", label: "GPT-4.1 - dịch/đọc ảnh tốt hơn" },
+    { value: "gpt-4.1-nano", label: "GPT-4.1 nano - nhanh/rẻ" },
+    { value: "gpt-4o", label: "GPT-4o - vision ổn định" },
+    { value: "gpt-4o-mini", label: "GPT-4o mini - nhanh/rẻ" },
+    { value: "gpt-5-mini", label: "GPT-5 mini - model mới, cân bằng" },
+    { value: "gpt-5-nano", label: "GPT-5 nano - nhanh/rẻ" },
+    { value: "gpt-5", label: "GPT-5 - mạnh hơn, có thể chậm/tốn hơn" },
+  ],
+  nvidia: [
+    { value: "meta/llama-3.2-11b-vision-instruct", label: "Llama 3.2 11B Vision - nhanh, ít timeout" },
+    { value: "meta/llama-3.2-90b-vision-instruct", label: "Llama 3.2 90B Vision - tốt hơn, dễ timeout" },
+    { value: "microsoft/phi-4-multimodal-instruct", label: "Phi-4 Multimodal - thử OCR/dịch" },
+    { value: "microsoft/phi-3-vision-128k-instruct", label: "Phi-3 Vision 128K - thử OCR" },
+  ],
+};
 
 const state = {
   unitId: localStorage.getItem(STORAGE_KEYS.selectedUnit) || "unit-01",
@@ -129,6 +148,7 @@ const els = {
   importStatus: document.querySelector("#importStatus"),
   aiProviderInput: document.querySelector("#aiProviderInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
+  aiModelSelect: document.querySelector("#aiModelSelect"),
   aiModelInput: document.querySelector("#aiModelInput"),
   aiProxyUrlInput: document.querySelector("#aiProxyUrlInput"),
   imageDropZone: document.querySelector("#imageDropZone"),
@@ -171,6 +191,23 @@ function applyEbookMode(isEnabled) {
 
 function toggleEbookMode() {
   applyEbookMode(!document.body.classList.contains("ebook-mode"));
+}
+
+function updateAiModelOptions(provider = els.aiProviderInput.value) {
+  const presets = AI_MODEL_PRESETS[provider] || [];
+  els.aiModelSelect.innerHTML = "";
+
+  presets.forEach((preset) => {
+    const option = new Option(preset.label, preset.value);
+    els.aiModelSelect.append(option);
+  });
+
+  els.aiModelSelect.value = getDefaultAiModel(provider);
+  els.aiModelInput.value = "";
+}
+
+function getSelectedAiModel() {
+  return els.aiModelInput.value.trim() || els.aiModelSelect.value || getDefaultAiModel(els.aiProviderInput.value);
 }
 
 function normalize(value) {
@@ -942,10 +979,10 @@ function handleImagePaste(event) {
 async function aiImportImage() {
   const provider = els.aiProviderInput.value;
   const apiKey = els.aiApiKeyInput.value.trim();
-  const model = els.aiModelInput.value.trim() || getDefaultAiModel(provider);
+  const model = getSelectedAiModel();
 
   if (!apiKey) {
-    els.aiImportStatus.textContent = "Bạn cần nhập OpenAI API key.";
+    els.aiImportStatus.textContent = `Bạn cần nhập ${provider === "nvidia" ? "NVIDIA" : "OpenAI"} API key.`;
     els.aiImportStatus.className = "feedback wrong";
     return;
   }
@@ -1098,7 +1135,7 @@ function buildNvidiaRequest(model, imageDataUrl) {
       payload: {
         model,
         temperature: 0,
-        max_tokens: 1600,
+        max_tokens: 1200,
         response_format: { type: "json_object" },
         messages: [
           {
@@ -1115,7 +1152,7 @@ function buildNvidiaRequest(model, imageDataUrl) {
     payload: {
     model,
     temperature: 0,
-    max_tokens: 1600,
+    max_tokens: 1200,
     response_format: { type: "json_object" },
     messages: [
       {
@@ -1335,7 +1372,7 @@ function bindEvents() {
   els.clearImageButton.addEventListener("click", clearAiImage);
   els.aiImportButton.addEventListener("click", aiImportImage);
   els.aiProviderInput.addEventListener("change", () => {
-    els.aiModelInput.value = getDefaultAiModel(els.aiProviderInput.value);
+    updateAiModelOptions();
   });
 }
 
@@ -1346,6 +1383,7 @@ async function init() {
     window.speechSynthesis.onvoiceschanged = loadSpeechVoices;
     loadSpeechVoices();
   }
+  updateAiModelOptions();
   initUnitControls();
   bindEvents();
   renderAll();
