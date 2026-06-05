@@ -608,6 +608,15 @@ h3 {
   resize: vertical;
 }
 
+.import-target {
+  display: grid;
+  gap: 8px;
+  max-width: 360px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-weight: 900;
+}
+
 .import-actions {
   display: flex;
   flex-wrap: wrap;

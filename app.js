@@ -34,6 +34,7 @@ const els = {
   unitSelect: document.querySelector("#unitSelect"),
   unitList: document.querySelector("#unitList"),
   unitInput: document.querySelector("#unitInput"),
+  importUnitInput: document.querySelector("#importUnitInput"),
   unitTitle: document.querySelector("#unitTitle"),
   unitDescription: document.querySelector("#unitDescription"),
   learnHeading: document.querySelector("#learnHeading"),
@@ -144,9 +145,22 @@ function normalizeUnit(unit, index) {
 
 function getImportedUnits() {
   const imported = loadJson(STORAGE_KEYS.imported, []);
-  return Array.isArray(imported) && imported.length
-    ? imported.map(normalizeUnit)
-    : createEmptyUnits();
+  const baseUnits = createEmptyUnits();
+
+  if (!Array.isArray(imported) || !imported.length) {
+    return baseUnits;
+  }
+
+  imported.map(normalizeUnit).forEach((importedUnit) => {
+    const targetIndex = baseUnits.findIndex((unit) => unit.id === importedUnit.id);
+    if (targetIndex >= 0) {
+      baseUnits[targetIndex] = importedUnit;
+    } else {
+      baseUnits.push(importedUnit);
+    }
+  });
+
+  return baseUnits.sort((a, b) => a.number - b.number);
 }
 
 function getCustomWords() {
@@ -183,6 +197,7 @@ function initUnitControls() {
   const units = getUnits();
   els.unitSelect.innerHTML = "";
   els.unitInput.innerHTML = "";
+  els.importUnitInput.innerHTML = "";
   els.unitList.innerHTML = "";
 
   units.forEach((unit) => {
@@ -190,6 +205,7 @@ function initUnitControls() {
     const option = new Option(label, unit.id);
     els.unitSelect.append(option);
     els.unitInput.append(option.cloneNode(true));
+    els.importUnitInput.append(option.cloneNode(true));
 
     const button = document.createElement("button");
     button.className = `unit-card ${unit.id === state.unitId ? "active" : ""}`;
@@ -208,6 +224,7 @@ function initUnitControls() {
 
   els.unitSelect.value = state.unitId;
   els.unitInput.value = state.unitId;
+  els.importUnitInput.value = state.unitId;
 }
 
 function setUnit(unitId) {
@@ -515,22 +532,56 @@ function handlePdfFile(event) {
 function importUnits() {
   try {
     const parsed = JSON.parse(els.importTextarea.value);
-    if (!Array.isArray(parsed)) {
-      throw new Error("JSON gốc phải là một mảng unit.");
+    const targetUnitId = els.importUnitInput.value || state.unitId;
+    const units = getImportedUnits();
+    const targetIndex = units.findIndex((unit) => unit.id === targetUnitId);
+
+    if (targetIndex < 0) {
+      throw new Error("Không tìm thấy unit cần import.");
     }
 
-    const normalized = parsed.map(normalizeUnit);
-    saveJson(STORAGE_KEYS.imported, normalized);
-    state.unitId = normalized[0]?.id || "unit-01";
+    const importedUnit = buildUnitForImport(parsed, units[targetIndex]);
+    units[targetIndex] = importedUnit;
+    saveJson(STORAGE_KEYS.imported, units);
+    state.unitId = importedUnit.id;
     localStorage.setItem(STORAGE_KEYS.selectedUnit, state.unitId);
     initUnitControls();
     renderAll();
-    els.importStatus.textContent = `Đã import ${normalized.length} unit.`;
+    els.importStatus.textContent = `Đã import ${importedUnit.words.length} mục vào Unit ${importedUnit.number}. Các unit khác vẫn được giữ nguyên.`;
     els.importStatus.className = "feedback correct";
+    switchPanel("learn");
   } catch (error) {
     els.importStatus.textContent = `Import lỗi: ${error.message}`;
     els.importStatus.className = "feedback wrong";
   }
+}
+
+function buildUnitForImport(parsed, targetUnit) {
+  const firstItem = Array.isArray(parsed) ? parsed[0] : parsed;
+  const sourceUnit =
+    firstItem && typeof firstItem === "object" && Array.isArray(firstItem.words)
+      ? firstItem
+      : null;
+  const sourceWords = sourceUnit ? sourceUnit.words : parsed;
+
+  if (!Array.isArray(sourceWords)) {
+    throw new Error("JSON phải là một unit có `words`, hoặc là một mảng từ.");
+  }
+
+  const importedWords = sourceWords
+    .map((word) => shapeWord(word, targetUnit.id))
+    .filter((word) => word.english && word.vietnamese);
+
+  if (!importedWords.length) {
+    throw new Error("Không có từ hợp lệ. Mỗi từ cần có `english` và `vietnamese`.");
+  }
+
+  return {
+    ...targetUnit,
+    title: sourceUnit?.title || targetUnit.title,
+    description: sourceUnit?.description || targetUnit.description,
+    words: importedWords,
+  };
 }
 
 function exportCurrentData() {
@@ -567,6 +618,9 @@ function clearImportedData() {
 function bindEvents() {
   els.pdfInput.addEventListener("change", handlePdfFile);
   els.unitSelect.addEventListener("change", () => setUnit(els.unitSelect.value));
+  els.importUnitInput.addEventListener("change", () => {
+    setUnit(els.importUnitInput.value);
+  });
   els.unitList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-unit-id]");
     if (button) {

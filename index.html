@@ -225,9 +225,13 @@
             </button>
           </div>
           <p class="panel-note">
-            Dán JSON theo mẫu bên dưới. Dữ liệu sẽ thay cho bộ unit hiện tại và được lưu
-            trong trình duyệt.
+            Chọn unit cần nhập bài, dán JSON rồi bấm import. Dữ liệu sẽ lưu nguyên ở
+            unit đó; các unit khác không bị mất.
           </p>
+          <label class="import-target">
+            Import vào unit
+            <select id="importUnitInput"></select>
+          </label>
           <pre class="json-sample">[
   {
     "number": 1,
