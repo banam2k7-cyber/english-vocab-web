@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Destination B1 Vocabulary Trainer</title>
-    <link rel="stylesheet" href="styles.css?v=16" />
+    <link rel="stylesheet" href="styles.css?v=17" />
   </head>
   <body>
     <div class="app">
@@ -252,8 +252,7 @@
               <label>
                 Nhà cung cấp AI
                 <select id="aiProviderInput">
-                  <option value="openai">OpenAI</option>
-                  <option value="nvidia">NVIDIA NIM</option>
+                  <option value="compatible">OpenAI Compatible</option>
                 </select>
               </label>
               <label>
@@ -266,15 +265,32 @@
                 />
               </label>
               <label>
-                Model preset
+                Base URL
+                <input
+                  id="aiBaseUrlInput"
+                  type="url"
+                  value="https://api.openai.com/v1"
+                  list="aiBaseUrlOptions"
+                  placeholder="https://api.openai.com/v1"
+                />
+                <datalist id="aiBaseUrlOptions">
+                  <option value="https://api.openai.com/v1"></option>
+                  <option value="https://integrate.api.nvidia.com/v1"></option>
+                </datalist>
+              </label>
+              <label>
+                Model
                 <select id="aiModelSelect"></select>
               </label>
+              <button class="ghost-button ai-model-load" id="loadModelsButton" type="button">
+                Tải /models
+              </button>
               <label class="wide-field">
-                Proxy URL cho NVIDIA nếu bị lỗi CORS
+                Proxy URL nếu bị lỗi CORS
                 <input
                   id="aiProxyUrlInput"
                   type="url"
-                  placeholder="https://your-worker.your-subdomain.workers.dev"
+                  placeholder="Để trống nếu gọi trực tiếp được"
                 />
               </label>
             </div>
@@ -332,6 +348,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=16"></script>
+    <script src="app.js?v=17"></script>
   </body>
 </html>

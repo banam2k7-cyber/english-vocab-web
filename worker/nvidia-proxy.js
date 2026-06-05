@@ -15,24 +15,24 @@ export default {
     }
 
     try {
-      const { apiKey, endpoint, payload } = await request.json();
+      const { apiKey, endpoint, method = "POST", payload } = await request.json();
 
-      if (!apiKey || !payload) {
-        return jsonResponse({ error: { message: "Missing apiKey or payload." } }, 400);
+      if (!apiKey || !endpoint) {
+        return jsonResponse({ error: { message: "Missing apiKey or endpoint." } }, 400);
       }
 
       const targetEndpoint = endpoint || "https://integrate.api.nvidia.com/v1/chat/completions";
-      if (!targetEndpoint.startsWith("https://integrate.api.nvidia.com/v1/")) {
-        return jsonResponse({ error: { message: "Unsupported NVIDIA endpoint." } }, 400);
+      if (!targetEndpoint.startsWith("https://")) {
+        return jsonResponse({ error: { message: "Only HTTPS endpoints are supported." } }, 400);
       }
 
       const upstream = await fetch(targetEndpoint, {
-        method: "POST",
+        method,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
+        body: method === "GET" ? undefined : JSON.stringify(payload),
       });
 
       const text = await upstream.text();

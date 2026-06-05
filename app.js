@@ -14,16 +14,12 @@ const STORAGE_KEYS = {
   ebookMode: "b1Trainer.ebookMode",
 };
 
-const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
-const DEFAULT_NVIDIA_MODEL = "meta/llama-3.2-11b-vision-instruct";
-const NVIDIA_DIRECT_ENDPOINTS = {
-  "meta/llama-4-maverick-17b-128e-instruct":
-    "https://integrate.api.nvidia.com/v1/meta/llama-4-maverick-17b-128e-instruct",
-};
+const DEFAULT_COMPATIBLE_BASE_URL = "https://api.openai.com/v1";
+const DEFAULT_COMPATIBLE_MODEL = "gpt-4.1-mini";
 const MAX_AI_IMAGE_EDGE = 1100;
 
 const AI_MODEL_PRESETS = {
-  openai: [
+  compatible: [
     { value: "gpt-4.1-mini", label: "GPT-4.1 mini - import ảnh cân bằng" },
     { value: "gpt-4.1", label: "GPT-4.1 - import ảnh tốt hơn" },
     { value: "gpt-4.1-nano", label: "GPT-4.1 nano - import ảnh nhanh/rẻ" },
@@ -63,8 +59,6 @@ const AI_MODEL_PRESETS = {
     { value: "text-embedding-ada-002", label: "Embedding ada 002 - embedding cũ, không dùng import" },
     { value: "omni-moderation-latest", label: "Omni moderation latest - moderation, không dùng import" },
     { value: "omni-moderation-2024-09-26", label: "Omni moderation 2024-09-26 - moderation, không dùng import" },
-  ],
-  nvidia: [
     { value: "meta/llama-3.2-11b-vision-instruct", label: "Llama 3.2 11B Vision - nhanh, ít timeout" },
     { value: "meta/llama-3.2-90b-vision-instruct", label: "Llama 3.2 90B Vision - dịch tốt hơn, dễ timeout" },
     { value: "microsoft/phi-4-multimodal-instruct", label: "Phi-4 Multimodal - OCR/dịch" },
@@ -179,7 +173,9 @@ const els = {
   importStatus: document.querySelector("#importStatus"),
   aiProviderInput: document.querySelector("#aiProviderInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
+  aiBaseUrlInput: document.querySelector("#aiBaseUrlInput"),
   aiModelSelect: document.querySelector("#aiModelSelect"),
+  loadModelsButton: document.querySelector("#loadModelsButton"),
   aiProxyUrlInput: document.querySelector("#aiProxyUrlInput"),
   imageDropZone: document.querySelector("#imageDropZone"),
   imageFileInput: document.querySelector("#imageFileInput"),
@@ -224,7 +220,7 @@ function toggleEbookMode() {
 }
 
 function updateAiModelOptions(provider = els.aiProviderInput.value) {
-  const presets = AI_MODEL_PRESETS[provider] || [];
+  const presets = AI_MODEL_PRESETS[provider] || AI_MODEL_PRESETS.compatible;
   els.aiModelSelect.innerHTML = "";
 
   presets.forEach((preset) => {
@@ -236,7 +232,19 @@ function updateAiModelOptions(provider = els.aiProviderInput.value) {
 }
 
 function getSelectedAiModel() {
-  return els.aiModelSelect.value || getDefaultAiModel(els.aiProviderInput.value);
+  return els.aiModelSelect.value || getDefaultAiModel();
+}
+
+function getCompatibleBaseUrl() {
+  return (els.aiBaseUrlInput.value.trim() || DEFAULT_COMPATIBLE_BASE_URL).replace(/\/+$/, "");
+}
+
+function makeCompatibleUrl(path) {
+  return `${getCompatibleBaseUrl()}${path}`;
+}
+
+function isNvidiaCompatibleUrl() {
+  return getCompatibleBaseUrl().includes("integrate.api.nvidia.com");
 }
 
 function normalize(value) {
@@ -1006,12 +1014,11 @@ function handleImagePaste(event) {
 }
 
 async function aiImportImage() {
-  const provider = els.aiProviderInput.value;
   const apiKey = els.aiApiKeyInput.value.trim();
   const model = getSelectedAiModel();
 
   if (!apiKey) {
-    els.aiImportStatus.textContent = `Bạn cần nhập ${provider === "nvidia" ? "NVIDIA" : "OpenAI"} API key.`;
+    els.aiImportStatus.textContent = "Bạn cần nhập API key.";
     els.aiImportStatus.className = "feedback wrong";
     return;
   }
@@ -1027,15 +1034,12 @@ async function aiImportImage() {
   els.aiImportStatus.className = "feedback";
 
   try {
-    const responseText =
-      provider === "nvidia"
-        ? await callNvidiaVisionImport({
-            apiKey,
-            model,
-            imageDataUrl: state.aiImageDataUrl,
-            proxyUrl: els.aiProxyUrlInput.value.trim(),
-          })
-        : await callOpenAiVisionImport({ apiKey, model, imageDataUrl: state.aiImageDataUrl });
+    const responseText = await callOpenAiCompatibleVisionImport({
+      apiKey,
+      model,
+      imageDataUrl: state.aiImageDataUrl,
+      proxyUrl: els.aiProxyUrlInput.value.trim(),
+    });
     const aiUnit = parseAiJsonResponse(responseText);
     const importedUnit = importParsedData(aiUnit, els.importUnitInput.value || state.unitId);
     els.importTextarea.value = JSON.stringify(aiUnit, null, 2);
@@ -1051,7 +1055,78 @@ async function aiImportImage() {
 }
 
 function getDefaultAiModel(provider) {
-  return provider === "nvidia" ? DEFAULT_NVIDIA_MODEL : DEFAULT_OPENAI_MODEL;
+  return DEFAULT_COMPATIBLE_MODEL;
+}
+
+async function loadAiModelsFromEndpoint() {
+  const apiKey = els.aiApiKeyInput.value.trim();
+  if (!apiKey) {
+    els.aiImportStatus.textContent = "Nhập API key trước, rồi bấm Tải models.";
+    els.aiImportStatus.className = "feedback wrong";
+    return;
+  }
+
+  els.loadModelsButton.disabled = true;
+  els.aiImportStatus.textContent = `Đang gọi ${makeCompatibleUrl("/models")}...`;
+  els.aiImportStatus.className = "feedback";
+
+  try {
+    const data = await callCompatibleModelsEndpoint({
+      apiKey,
+      endpoint: makeCompatibleUrl("/models"),
+      proxyUrl: els.aiProxyUrlInput.value.trim(),
+    });
+    const modelIds = extractModelIds(data);
+    if (!modelIds.length) {
+      throw new Error("Phản hồi /models không có danh sách model.");
+    }
+    setLoadedModelOptions(modelIds);
+    els.aiImportStatus.textContent = `Đã tải ${modelIds.length} model từ /models.`;
+    els.aiImportStatus.className = "feedback correct";
+  } catch (error) {
+    updateAiModelOptions();
+    els.aiImportStatus.textContent = `Không tải được /models: ${error.message}. Đang dùng danh sách preset.`;
+    els.aiImportStatus.className = "feedback wrong";
+  } finally {
+    els.loadModelsButton.disabled = false;
+  }
+}
+
+async function callCompatibleModelsEndpoint({ apiKey, endpoint, proxyUrl }) {
+  const response = await fetchCompatibleApi({
+    apiKey,
+    endpoint,
+    method: "GET",
+    proxyUrl,
+  });
+  const data = await readApiJson(response, "OpenAI-compatible /models");
+  if (!response.ok) {
+    throw new Error(formatApiError(data, "OpenAI-compatible /models", response.status));
+  }
+  return data;
+}
+
+function extractModelIds(data) {
+  const source = Array.isArray(data?.data) ? data.data : Array.isArray(data?.models) ? data.models : [];
+  return [...new Set(
+    source
+      .map((model) => (typeof model === "string" ? model : model.id || model.name))
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+}
+
+function setLoadedModelOptions(modelIds) {
+  els.aiModelSelect.innerHTML = "";
+  modelIds.forEach((modelId) => {
+    els.aiModelSelect.append(new Option(modelId, modelId));
+  });
+
+  const defaultModel = modelIds.find((modelId) => modelId === DEFAULT_COMPATIBLE_MODEL);
+  const visionModel =
+    defaultModel ||
+    modelIds.find((modelId) => /gpt-4\.1-mini|gpt-4o-mini|vision|multimodal/i.test(modelId)) ||
+    modelIds[0];
+  els.aiModelSelect.value = visionModel;
 }
 
 function getAiPrompt() {
@@ -1073,111 +1148,32 @@ function getAiPrompt() {
   ].join(" ");
 }
 
-async function callOpenAiVisionImport({ apiKey, model, imageDataUrl }) {
-  const response = await fetch("https://api.openai.com/v1/responses", {
+async function callOpenAiCompatibleVisionImport({ apiKey, model, imageDataUrl, proxyUrl }) {
+  const endpoint = makeCompatibleUrl("/chat/completions");
+  const payload = buildCompatibleChatPayload(model, imageDataUrl);
+  const response = await fetchCompatibleApi({
+    apiKey,
+    endpoint,
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: getAiPrompt(),
-            },
-            {
-              type: "input_image",
-              image_url: imageDataUrl,
-              detail: "high",
-            },
-          ],
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "unit_vocabulary_import",
-          strict: true,
-          schema: getUnitImportJsonSchema(),
-        },
-      },
-    }),
+    payload,
+    proxyUrl,
   });
-
-  const data = await readApiJson(response, "OpenAI");
+  const data = await readApiJson(response, "OpenAI-compatible");
   if (!response.ok) {
-    throw new Error(formatApiError(data, "OpenAI", response.status));
-  }
-
-  return extractOpenAiResponseText(data);
-}
-
-async function callNvidiaVisionImport({ apiKey, model, imageDataUrl, proxyUrl }) {
-  const { endpoint, payload } = buildNvidiaRequest(model, imageDataUrl);
-  const headers = { "Content-Type": "application/json" };
-  const body = proxyUrl ? { apiKey, endpoint, payload } : payload;
-
-  if (!proxyUrl) {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
-
-  let response;
-  try {
-    response = await fetch(proxyUrl || endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    if (!proxyUrl) {
-      throw new Error(
-        "NVIDIA chặn request trực tiếp từ trình duyệt (CORS). Hãy dùng Proxy URL cho NVIDIA."
-      );
-    }
-    throw error;
-  }
-
-  const data = await readApiJson(response, "NVIDIA");
-  if (!response.ok) {
-    throw new Error(formatApiError(data, "NVIDIA", response.status));
+    throw new Error(formatApiError(data, "OpenAI-compatible", response.status));
   }
 
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error("Không đọc được nội dung từ phản hồi NVIDIA.");
+    throw new Error("Không đọc được nội dung từ phản hồi AI compatible.");
   }
 
   return stripJsonFence(typeof content === "string" ? content : JSON.stringify(content));
 }
 
-function buildNvidiaRequest(model, imageDataUrl) {
-  const directEndpoint = NVIDIA_DIRECT_ENDPOINTS[model];
-
-  if (directEndpoint) {
-    return {
-      endpoint: directEndpoint,
-      payload: {
-        model,
-        temperature: 0,
-        max_tokens: 1200,
-        messages: [
-          {
-            role: "user",
-            content: `${getAiPrompt()}\n<img src="${imageDataUrl}" />`,
-          },
-        ],
-      },
-    };
-  }
-
-  return {
-    endpoint: "https://integrate.api.nvidia.com/v1/chat/completions",
-    payload: {
+function buildCompatibleChatPayload(model, imageDataUrl) {
+  const nvidiaMode = isNvidiaCompatibleUrl();
+  const payload = {
     model,
     temperature: 0,
     max_tokens: 1200,
@@ -1189,11 +1185,50 @@ function buildNvidiaRequest(model, imageDataUrl) {
       },
       {
         role: "user",
-        content: `${getAiPrompt()}\n<img src="${imageDataUrl}" />`,
+        content: nvidiaMode
+          ? `${getAiPrompt()}\n<img src="${imageDataUrl}" />`
+          : [
+              { type: "text", text: getAiPrompt() },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageDataUrl,
+                },
+              },
+            ],
       },
     ],
-    },
   };
+
+  if (!nvidiaMode) {
+    payload.response_format = { type: "json_object" };
+  }
+
+  return payload;
+}
+
+async function fetchCompatibleApi({ apiKey, endpoint, method, payload, proxyUrl }) {
+  const headers = { "Content-Type": "application/json" };
+  const normalizedMethod = method || "POST";
+
+  try {
+    if (proxyUrl) {
+      return await fetch(proxyUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ apiKey, endpoint, method: normalizedMethod, payload }),
+      });
+    }
+
+    headers.Authorization = `Bearer ${apiKey}`;
+    return await fetch(endpoint, {
+      method: normalizedMethod,
+      headers,
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+  } catch (error) {
+    throw new Error(`Không gọi được OpenAI-compatible API: ${error.message}`);
+  }
 }
 
 async function readApiJson(response, providerName) {
@@ -1406,6 +1441,18 @@ function bindEvents() {
   els.aiProviderInput.addEventListener("change", () => {
     updateAiModelOptions();
   });
+  els.aiBaseUrlInput.addEventListener("change", () => {
+    updateAiModelOptions();
+    if (els.aiApiKeyInput.value.trim()) {
+      loadAiModelsFromEndpoint();
+    }
+  });
+  els.aiApiKeyInput.addEventListener("change", () => {
+    if (els.aiApiKeyInput.value.trim()) {
+      loadAiModelsFromEndpoint();
+    }
+  });
+  els.loadModelsButton.addEventListener("click", loadAiModelsFromEndpoint);
 }
 
 async function init() {

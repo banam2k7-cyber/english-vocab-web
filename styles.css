@@ -758,6 +758,11 @@ body[data-theme="dark"] .question-card {
   font-weight: 900;
 }
 
+.ai-model-load {
+  align-self: end;
+  min-height: 44px;
+}
+
 .ai-grid .wide-field {
   grid-column: 1 / -1;
 }
