@@ -35,9 +35,9 @@ const AI_MODEL_PRESETS = {
   ],
   nvidia: [
     { value: "meta/llama-3.2-11b-vision-instruct", label: "Llama 3.2 11B Vision - nhanh, ít timeout" },
-    { value: "meta/llama-3.2-90b-vision-instruct", label: "Llama 3.2 90B Vision - tốt hơn, dễ timeout" },
-    { value: "microsoft/phi-4-multimodal-instruct", label: "Phi-4 Multimodal - thử OCR/dịch" },
-    { value: "microsoft/phi-3-vision-128k-instruct", label: "Phi-3 Vision 128K - thử OCR" },
+    { value: "meta/llama-3.2-90b-vision-instruct", label: "Llama 3.2 90B Vision - dịch tốt hơn, dễ timeout" },
+    { value: "microsoft/phi-4-multimodal-instruct", label: "Phi-4 Multimodal - OCR/dịch" },
+    { value: "microsoft/phi-3-vision-128k-instruct", label: "Phi-3 Vision 128K - OCR" },
   ],
 };
 
@@ -149,7 +149,6 @@ const els = {
   aiProviderInput: document.querySelector("#aiProviderInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
   aiModelSelect: document.querySelector("#aiModelSelect"),
-  aiModelInput: document.querySelector("#aiModelInput"),
   aiProxyUrlInput: document.querySelector("#aiProxyUrlInput"),
   imageDropZone: document.querySelector("#imageDropZone"),
   imageFileInput: document.querySelector("#imageFileInput"),
@@ -203,11 +202,10 @@ function updateAiModelOptions(provider = els.aiProviderInput.value) {
   });
 
   els.aiModelSelect.value = getDefaultAiModel(provider);
-  els.aiModelInput.value = "";
 }
 
 function getSelectedAiModel() {
-  return els.aiModelInput.value.trim() || els.aiModelSelect.value || getDefaultAiModel(els.aiProviderInput.value);
+  return els.aiModelSelect.value || getDefaultAiModel(els.aiProviderInput.value);
 }
 
 function normalize(value) {
@@ -1082,7 +1080,7 @@ async function callOpenAiVisionImport({ apiKey, model, imageDataUrl }) {
 
   const data = await readApiJson(response, "OpenAI");
   if (!response.ok) {
-    throw new Error(data.error?.message || "OpenAI API trả lỗi.");
+    throw new Error(formatApiError(data, "OpenAI", response.status));
   }
 
   return extractOpenAiResponseText(data);
@@ -1115,7 +1113,7 @@ async function callNvidiaVisionImport({ apiKey, model, imageDataUrl, proxyUrl })
 
   const data = await readApiJson(response, "NVIDIA");
   if (!response.ok) {
-    throw new Error(data.error?.message || "NVIDIA API trả lỗi.");
+    throw new Error(formatApiError(data, "NVIDIA", response.status));
   }
 
   const content = data.choices?.[0]?.message?.content;
@@ -1136,7 +1134,6 @@ function buildNvidiaRequest(model, imageDataUrl) {
         model,
         temperature: 0,
         max_tokens: 1200,
-        response_format: { type: "json_object" },
         messages: [
           {
             role: "user",
@@ -1153,7 +1150,6 @@ function buildNvidiaRequest(model, imageDataUrl) {
     model,
     temperature: 0,
     max_tokens: 1200,
-    response_format: { type: "json_object" },
     messages: [
       {
         role: "system",
@@ -1162,18 +1158,7 @@ function buildNvidiaRequest(model, imageDataUrl) {
       },
       {
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: getAiPrompt(),
-          },
-          {
-            type: "image_url",
-            image_url: {
-              url: imageDataUrl,
-            },
-          },
-        ],
+        content: `${getAiPrompt()}\n<img src="${imageDataUrl}" />`,
       },
     ],
     },
@@ -1197,6 +1182,22 @@ async function readApiJson(response, providerName) {
   throw new Error(
     `${providerName} trả phản hồi không phải JSON (${response.status}). Phản hồi bắt đầu bằng: ${preview || "trống"}`
   );
+}
+
+function formatApiError(data, providerName, status) {
+  const error = data?.error || data;
+  const parts = [
+    error?.message,
+    error?.detail,
+    error?.code ? `code: ${error.code}` : "",
+    error?.type ? `type: ${error.type}` : "",
+  ].filter(Boolean);
+
+  if (parts.length) {
+    return `${providerName} API lỗi ${status}: ${parts.join(" - ")}`;
+  }
+
+  return `${providerName} API lỗi ${status}: ${JSON.stringify(data).slice(0, 180)}`;
 }
 
 function stripHtml(value) {
