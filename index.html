@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Destination B1 Vocabulary Trainer</title>
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=5" />
   </head>
   <body>
     <div class="app">
@@ -232,6 +232,50 @@
             Import vào unit
             <select id="importUnitInput"></select>
           </label>
+          <div class="ai-import-card">
+            <div class="ai-import-head">
+              <div>
+                <p class="eyebrow">AI image import</p>
+                <h3>Dán ảnh để AI đọc và import vào unit đã chọn</h3>
+              </div>
+            </div>
+            <div class="ai-grid">
+              <label>
+                OpenAI API key
+                <input
+                  id="aiApiKeyInput"
+                  type="password"
+                  autocomplete="off"
+                  placeholder="sk-..."
+                />
+              </label>
+              <label>
+                Model
+                <input id="aiModelInput" type="text" value="gpt-4.1-mini" />
+              </label>
+            </div>
+            <div class="image-drop-zone" id="imageDropZone" tabindex="0">
+              <strong>Dán ảnh vào đây</strong>
+              <span>Ctrl+V, kéo thả ảnh, hoặc chọn file ảnh bên dưới.</span>
+              <img class="image-preview hidden" id="imagePreview" alt="Ảnh sẽ được AI đọc" />
+            </div>
+            <div class="import-actions">
+              <label class="file-button compact">
+                Chọn ảnh
+                <input id="imageFileInput" type="file" accept="image/*" />
+              </label>
+              <button class="primary-button" id="aiImportButton" type="button">
+                AI đọc ảnh và import
+              </button>
+              <button class="ghost-button" id="clearImageButton" type="button">
+                Xóa ảnh
+              </button>
+            </div>
+            <p class="panel-note">
+              API key chỉ dùng trong trình duyệt cho lần chạy này. Không dán API key lên GitHub.
+            </p>
+            <p class="feedback" id="aiImportStatus" aria-live="polite"></p>
+          </div>
           <pre class="json-sample">[
   {
     "number": 1,
@@ -242,6 +286,7 @@
         "english": "achievement",
         "vietnamese": "thành tựu",
         "type": "noun",
+        "phonetic": "/əˈtʃiːvmənt/",
         "example": "Passing the exam was a big achievement."
       }
     ]
@@ -263,6 +308,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
   </body>
 </html>

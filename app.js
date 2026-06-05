@@ -20,6 +20,8 @@ const state = {
   results: [],
   answered: false,
   pdfUrl: "",
+  aiImageDataUrl: "",
+  aiImageName: "",
 };
 
 const els = {
@@ -80,6 +82,14 @@ const els = {
   exportDataButton: document.querySelector("#exportDataButton"),
   clearImportedButton: document.querySelector("#clearImportedButton"),
   importStatus: document.querySelector("#importStatus"),
+  aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
+  aiModelInput: document.querySelector("#aiModelInput"),
+  imageDropZone: document.querySelector("#imageDropZone"),
+  imageFileInput: document.querySelector("#imageFileInput"),
+  imagePreview: document.querySelector("#imagePreview"),
+  aiImportButton: document.querySelector("#aiImportButton"),
+  clearImageButton: document.querySelector("#clearImageButton"),
+  aiImportStatus: document.querySelector("#aiImportStatus"),
 };
 
 function loadJson(key, fallback) {
@@ -131,6 +141,8 @@ function shapeWord(word, unitId) {
     vietnamese: word.vietnamese || "",
     type: word.type || "word",
     example: word.example || "",
+    phonetic: word.phonetic || word.phonetics || "",
+    audio: word.audio || "",
     alternatives: Array.isArray(word.alternatives) ? word.alternatives : [],
     unitId: word.unitId || unitId,
   };
@@ -295,6 +307,7 @@ function renderWordTable() {
       <span>Vietnamese</span>
       <span>Type</span>
       <span>Example</span>
+      <span>Pronunciation</span>
       <span>Status</span>
     </div>
   `;
@@ -309,6 +322,16 @@ function renderWordTable() {
       <span class="meaning">${escapeHtml(word.vietnamese)}</span>
       <span class="type-tag">${escapeHtml(word.type || "word")}</span>
       <span class="example">${escapeHtml(word.example || "Tự đặt một câu với từ này.")}</span>
+      <span class="pron-tools">
+        ${word.phonetic ? `<span class="phonetic">${escapeHtml(word.phonetic)}</span>` : ""}
+        <button class="mini-button" type="button" data-speak="${escapeHtml(word.english)}">Nghe</button>
+        ${
+          word.audio
+            ? `<a class="mini-link" href="${escapeHtml(word.audio)}" target="_blank" rel="noreferrer">Audio</a>`
+            : ""
+        }
+        <a class="mini-link" href="${escapeHtml(getOxfordUrl(word.english))}" target="_blank" rel="noreferrer">Oxford</a>
+      </span>
       <label class="master-check">
         <input type="checkbox" data-mastered="${escapeHtml(wordId)}" ${mastered[wordId] ? "checked" : ""} />
         Đã thuộc
@@ -593,21 +616,7 @@ function showPdfFile(record) {
 function importUnits() {
   try {
     const parsed = JSON.parse(els.importTextarea.value);
-    const targetUnitId = els.importUnitInput.value || state.unitId;
-    const units = getImportedUnits();
-    const targetIndex = units.findIndex((unit) => unit.id === targetUnitId);
-
-    if (targetIndex < 0) {
-      throw new Error("Không tìm thấy unit cần import.");
-    }
-
-    const importedUnit = buildUnitForImport(parsed, units[targetIndex]);
-    units[targetIndex] = importedUnit;
-    saveJson(STORAGE_KEYS.imported, units);
-    state.unitId = importedUnit.id;
-    localStorage.setItem(STORAGE_KEYS.selectedUnit, state.unitId);
-    initUnitControls();
-    renderAll();
+    const importedUnit = importParsedData(parsed, els.importUnitInput.value || state.unitId);
     els.importStatus.textContent = `Đã import ${importedUnit.words.length} mục vào Unit ${importedUnit.number}. Chọn unit khác ở ô "Import vào unit" để nhập bài tiếp theo.`;
     els.importStatus.className = "feedback correct";
     switchPanel("import");
@@ -615,6 +624,24 @@ function importUnits() {
     els.importStatus.textContent = `Import lỗi: ${error.message}`;
     els.importStatus.className = "feedback wrong";
   }
+}
+
+function importParsedData(parsed, targetUnitId) {
+  const units = getImportedUnits();
+  const targetIndex = units.findIndex((unit) => unit.id === targetUnitId);
+
+  if (targetIndex < 0) {
+    throw new Error("Không tìm thấy unit cần import.");
+  }
+
+  const importedUnit = buildUnitForImport(parsed, units[targetIndex]);
+  units[targetIndex] = importedUnit;
+  saveJson(STORAGE_KEYS.imported, units);
+  state.unitId = importedUnit.id;
+  localStorage.setItem(STORAGE_KEYS.selectedUnit, state.unitId);
+  initUnitControls();
+  renderAll();
+  return importedUnit;
 }
 
 function buildUnitForImport(parsed, targetUnit) {
@@ -650,17 +677,196 @@ function exportCurrentData() {
     number: unit.number,
     title: unit.title,
     description: unit.description,
-    words: unit.words.map(({ english, vietnamese, type, example, alternatives }) => ({
+    words: unit.words.map(({ english, vietnamese, type, example, phonetic, audio, alternatives }) => ({
       english,
       vietnamese,
       type,
       example,
+      phonetic,
+      audio,
       alternatives,
     })),
   }));
   els.importTextarea.value = JSON.stringify(data, null, 2);
   els.importStatus.textContent = "Đã đưa dữ liệu hiện tại vào ô import.";
   els.importStatus.className = "feedback correct";
+}
+
+function getOxfordUrl(term) {
+  return `https://www.oxfordlearnersdictionaries.com/search/english/?q=${encodeURIComponent(term)}`;
+}
+
+function speakText(text) {
+  if (!("speechSynthesis" in window)) {
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-GB";
+  utterance.rate = 0.9;
+  window.speechSynthesis.speak(utterance);
+}
+
+function setAiImage(dataUrl, name) {
+  state.aiImageDataUrl = dataUrl;
+  state.aiImageName = name || "pasted-image";
+  els.imagePreview.src = dataUrl;
+  els.imagePreview.classList.remove("hidden");
+  els.aiImportStatus.textContent = `Đã nhận ảnh: ${state.aiImageName}`;
+  els.aiImportStatus.className = "feedback correct";
+}
+
+function clearAiImage() {
+  state.aiImageDataUrl = "";
+  state.aiImageName = "";
+  els.imagePreview.removeAttribute("src");
+  els.imagePreview.classList.add("hidden");
+  els.imageFileInput.value = "";
+  els.aiImportStatus.textContent = "";
+  els.aiImportStatus.className = "feedback";
+}
+
+function readImageFile(file) {
+  if (!file || !file.type.startsWith("image/")) {
+    els.aiImportStatus.textContent = "File được chọn không phải ảnh.";
+    els.aiImportStatus.className = "feedback wrong";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => setAiImage(reader.result, file.name);
+  reader.onerror = () => {
+    els.aiImportStatus.textContent = "Không đọc được ảnh.";
+    els.aiImportStatus.className = "feedback wrong";
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleImagePaste(event) {
+  const item = [...(event.clipboardData?.items || [])].find((clipboardItem) =>
+    clipboardItem.type.startsWith("image/")
+  );
+  if (!item) {
+    return;
+  }
+  event.preventDefault();
+  readImageFile(item.getAsFile());
+}
+
+async function aiImportImage() {
+  const apiKey = els.aiApiKeyInput.value.trim();
+  const model = els.aiModelInput.value.trim() || "gpt-4.1-mini";
+
+  if (!apiKey) {
+    els.aiImportStatus.textContent = "Bạn cần nhập OpenAI API key.";
+    els.aiImportStatus.className = "feedback wrong";
+    return;
+  }
+
+  if (!state.aiImageDataUrl) {
+    els.aiImportStatus.textContent = "Bạn cần dán hoặc chọn ảnh trước.";
+    els.aiImportStatus.className = "feedback wrong";
+    return;
+  }
+
+  els.aiImportButton.disabled = true;
+  els.aiImportStatus.textContent = "AI đang đọc ảnh và tạo dữ liệu import...";
+  els.aiImportStatus.className = "feedback";
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text:
+                  "Read the vocabulary image. Extract only vocabulary items, phrasal verbs, prepositional phrases, word formation items, definitions if visible, part of speech, and phonetic transcription if visible. Translate meanings into Vietnamese. Return structured JSON for one unit. Use concise Vietnamese meanings. If a definition is visible, put it in example or description only when useful.",
+              },
+              {
+                type: "input_image",
+                image_url: state.aiImageDataUrl,
+                detail: "high",
+              },
+            ],
+          },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "unit_vocabulary_import",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["title", "description", "words"],
+              properties: {
+                title: { type: "string" },
+                description: { type: "string" },
+                words: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["english", "vietnamese", "type", "phonetic", "example"],
+                    properties: {
+                      english: { type: "string" },
+                      vietnamese: { type: "string" },
+                      type: { type: "string" },
+                      phonetic: { type: "string" },
+                      example: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error?.message || "OpenAI API trả lỗi.");
+    }
+
+    const responseText = extractResponseText(data);
+    const aiUnit = JSON.parse(responseText);
+    const importedUnit = importParsedData(aiUnit, els.importUnitInput.value || state.unitId);
+    els.importTextarea.value = JSON.stringify(aiUnit, null, 2);
+    els.aiImportStatus.textContent = `Đã AI import ${importedUnit.words.length} mục vào Unit ${importedUnit.number}.`;
+    els.aiImportStatus.className = "feedback correct";
+    switchPanel("import");
+  } catch (error) {
+    els.aiImportStatus.textContent = `AI import lỗi: ${error.message}`;
+    els.aiImportStatus.className = "feedback wrong";
+  } finally {
+    els.aiImportButton.disabled = false;
+  }
+}
+
+function extractResponseText(data) {
+  if (data.output_text) {
+    return data.output_text;
+  }
+
+  for (const outputItem of data.output || []) {
+    for (const contentItem of outputItem.content || []) {
+      if (contentItem.type === "output_text" && contentItem.text) {
+        return contentItem.text;
+      }
+    }
+  }
+
+  throw new Error("Không đọc được JSON từ phản hồi AI.");
 }
 
 function clearImportedData() {
@@ -718,11 +924,35 @@ function bindEvents() {
     saveJson(STORAGE_KEYS.mastered, mastered);
     updateStats();
   });
+  els.wordTable.addEventListener("click", (event) => {
+    const speakButton = event.target.closest("[data-speak]");
+    if (speakButton) {
+      speakText(speakButton.dataset.speak);
+    }
+  });
   els.wordForm.addEventListener("submit", addCustomWord);
   els.clearCustomButton.addEventListener("click", clearCustomWords);
   els.importButton.addEventListener("click", importUnits);
   els.exportDataButton.addEventListener("click", exportCurrentData);
   els.clearImportedButton.addEventListener("click", clearImportedData);
+  els.imageDropZone.addEventListener("paste", handleImagePaste);
+  els.imageDropZone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    els.imageDropZone.classList.add("drag-over");
+  });
+  els.imageDropZone.addEventListener("dragleave", () => {
+    els.imageDropZone.classList.remove("drag-over");
+  });
+  els.imageDropZone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    els.imageDropZone.classList.remove("drag-over");
+    readImageFile(event.dataTransfer.files[0]);
+  });
+  els.imageFileInput.addEventListener("change", () => {
+    readImageFile(els.imageFileInput.files[0]);
+  });
+  els.clearImageButton.addEventListener("click", clearAiImage);
+  els.aiImportButton.addEventListener("click", aiImportImage);
 }
 
 async function init() {
