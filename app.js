@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   mastered: "b1Trainer.masteredWords",
   progress: "b1Trainer.progress",
   selectedUnit: "b1Trainer.selectedUnit",
+  theme: "b1Trainer.theme",
 };
 
 const state = {
@@ -26,6 +27,7 @@ const state = {
 
 const els = {
   pdfTab: document.querySelector("#pdfTab"),
+  themeToggle: document.querySelector("#themeToggle"),
   learnTab: document.querySelector("#learnTab"),
   testTab: document.querySelector("#testTab"),
   addTab: document.querySelector("#addTab"),
@@ -104,6 +106,17 @@ function loadJson(key, fallback) {
 
 function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function applyTheme(theme) {
+  document.body.dataset.theme = theme;
+  localStorage.setItem(STORAGE_KEYS.theme, theme);
+  els.themeToggle.textContent = theme === "dark" ? "Chế độ sáng" : "Chế độ tối";
+}
+
+function toggleTheme() {
+  const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(nextTheme);
 }
 
 function normalize(value) {
@@ -786,7 +799,7 @@ async function aiImportImage() {
             proxyUrl: els.aiProxyUrlInput.value.trim(),
           })
         : await callOpenAiVisionImport({ apiKey, model, imageDataUrl: state.aiImageDataUrl });
-    const aiUnit = JSON.parse(responseText);
+    const aiUnit = parseAiJsonResponse(responseText);
     const importedUnit = importParsedData(aiUnit, els.importUnitInput.value || state.unitId);
     els.importTextarea.value = JSON.stringify(aiUnit, null, 2);
     els.aiImportStatus.textContent = `Đã AI import ${importedUnit.words.length} mục vào Unit ${importedUnit.number}.`;
@@ -806,10 +819,12 @@ function getDefaultAiModel(provider) {
 
 function getAiPrompt() {
   return [
+    "You are a strict JSON extraction engine. Do not explain, do not add markdown, do not add comments.",
     "Read the vocabulary image.",
     "Extract only vocabulary items, phrasal verbs, prepositional phrases, word formation items, definitions if visible, part of speech, and phonetic transcription if visible.",
     "Translate meanings into Vietnamese.",
-    "Return only valid JSON with this shape:",
+    "The first character of your response must be { and the last character must be }.",
+    "Return only valid JSON with this exact shape:",
     '{"title":"string","description":"string","words":[{"english":"string","vietnamese":"string","type":"string","phonetic":"string","example":"string"}]}',
     "Use concise Vietnamese meanings. Leave phonetic/example as an empty string if not visible.",
   ].join(" ");
@@ -866,6 +881,11 @@ async function callNvidiaVisionImport({ apiKey, model, imageDataUrl, proxyUrl })
     max_tokens: 2048,
     response_format: { type: "json_object" },
     messages: [
+      {
+        role: "system",
+        content:
+          "You output only valid JSON. Never describe the image in prose. Never wrap JSON in markdown.",
+      },
       {
         role: "user",
         content: [
@@ -971,6 +991,37 @@ function stripJsonFence(value) {
     .trim();
 }
 
+function parseAiJsonResponse(value) {
+  const cleaned = stripJsonFence(String(value || ""));
+  const direct = tryParseJson(cleaned);
+  if (direct) {
+    return direct;
+  }
+
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    const extracted = cleaned.slice(firstBrace, lastBrace + 1);
+    const parsed = tryParseJson(extracted);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  const preview = cleaned.slice(0, 160).replace(/\s+/g, " ");
+  throw new Error(
+    `AI chưa trả JSON hợp lệ. Hãy bấm lại hoặc đổi model. Phản hồi bắt đầu bằng: ${preview}`
+  );
+}
+
+function tryParseJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 function clearImportedData() {
   if (!window.confirm("Xóa toàn bộ dữ liệu import?")) {
     return;
@@ -985,6 +1036,7 @@ function clearImportedData() {
 }
 
 function bindEvents() {
+  els.themeToggle.addEventListener("click", toggleTheme);
   els.pdfInput.addEventListener("change", handlePdfFile);
   els.unitSelect.addEventListener("change", () => setUnit(els.unitSelect.value));
   els.importUnitInput.addEventListener("change", () => {
@@ -1061,6 +1113,7 @@ function bindEvents() {
 }
 
 async function init() {
+  applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
   initUnitControls();
   bindEvents();
   renderAll();
