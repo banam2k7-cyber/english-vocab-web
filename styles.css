@@ -89,12 +89,12 @@ select:focus {
   top: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: auto minmax(420px, 1fr) minmax(220px, 360px) 44px;
-  gap: 10px;
+  grid-template-columns: minmax(210px, 260px) minmax(440px, 1fr) minmax(260px, 360px) 40px;
+  gap: 12px;
   align-items: center;
   height: auto;
   overflow: visible;
-  padding: 8px 18px;
+  padding: 8px 16px;
   color: var(--sidebar-text);
   background: var(--sidebar);
   border-right: 1px solid var(--line);
@@ -103,6 +103,7 @@ select:focus {
 
 .brand {
   display: flex;
+  min-width: 0;
   gap: 10px;
   align-items: center;
   margin-bottom: 0;
@@ -111,8 +112,8 @@ select:focus {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   background: var(--teal);
   font-weight: 900;
@@ -121,35 +122,43 @@ select:focus {
 .brand strong,
 .brand span {
   display: block;
+  white-space: nowrap;
 }
 
 .brand span {
   margin-top: 1px;
   color: var(--sidebar-muted);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
 .theme-toggle {
   display: grid;
   place-items: center;
-  width: 42px;
-  min-height: 42px;
+  width: 38px;
+  min-height: 38px;
   margin: 0;
   padding: 0;
   color: var(--sidebar-text);
   background: color-mix(in srgb, var(--paper), var(--wash) 55%);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 1.2rem;
+  border-radius: 10px;
+  font-size: 1.05rem;
   font-weight: 900;
 }
 
 .unit-picker {
   display: grid;
-  gap: 4px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
   margin-bottom: 0;
   color: var(--sidebar-text);
+  font-size: 0.88rem;
   font-weight: 800;
+}
+
+.unit-picker select {
+  min-height: 38px;
 }
 
 .unit-list {
@@ -323,19 +332,25 @@ h3 {
 .mode-tabs {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  gap: 4px;
+  width: 100%;
+  max-width: 720px;
   margin-bottom: 0;
-  padding: 5px;
+  padding: 4px;
+  justify-self: center;
   background: color-mix(in srgb, var(--paper), var(--wash) 55%);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .mode-tabs button {
   color: var(--muted);
   background: transparent;
   border: 0;
-  min-height: 38px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 0.9rem;
 }
 
 .mode-tabs button.active {
@@ -438,16 +453,16 @@ body.ebook-mode .pdf-frame {
   display: grid;
   border: 1px solid var(--line);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .word-row {
   display: grid;
-  grid-template-columns: 48px 1.05fr 0.95fr 110px minmax(160px, 1.2fr) 180px 130px;
-  gap: 12px;
+  grid-template-columns: 40px minmax(130px, 0.82fr) minmax(150px, 0.95fr) 86px minmax(220px, 1.25fr) 150px 112px;
+  gap: 10px;
   align-items: center;
-  min-height: 64px;
-  padding: 10px 12px;
+  min-height: 56px;
+  padding: 9px 12px;
   background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
@@ -457,10 +472,10 @@ body.ebook-mode .pdf-frame {
 }
 
 .word-row.header {
-  min-height: 46px;
+  min-height: 40px;
   color: var(--muted);
   background: color-mix(in srgb, var(--paper), var(--wash) 52%);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -468,8 +483,8 @@ body.ebook-mode .pdf-frame {
 .index-pill {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   color: var(--teal-dark);
   background: color-mix(in srgb, var(--teal), var(--paper) 82%);
   border-radius: 999px;
@@ -477,35 +492,36 @@ body.ebook-mode .pdf-frame {
 }
 
 .word-main {
-  font-size: 1.18rem;
+  font-size: 1.02rem;
   font-weight: 900;
 }
 
 .meaning {
   color: var(--coral);
   font-weight: 800;
+  line-height: 1.35;
 }
 
 .type-tag {
   justify-self: start;
-  padding: 5px 8px;
+  padding: 4px 8px;
   color: var(--teal-dark);
   background: color-mix(in srgb, var(--teal), var(--paper) 88%);
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 900;
 }
 
 .pron-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
   align-items: center;
 }
 
 .phonetic {
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 800;
 }
 
@@ -513,8 +529,8 @@ body.ebook-mode .pdf-frame {
 .mini-link {
   display: inline-grid;
   place-items: center;
-  min-height: 30px;
-  padding: 0 9px;
+  min-height: 28px;
+  padding: 0 8px;
   color: var(--ink);
   background: var(--field);
   border: 1px solid var(--line);
@@ -532,13 +548,15 @@ body.ebook-mode .pdf-frame {
 
 .example {
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.38;
+  font-size: 0.9rem;
 }
 
 .master-check {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: flex-start;
   color: var(--muted);
   font-weight: 800;
 }
@@ -552,25 +570,32 @@ body.ebook-mode .pdf-frame {
 
 .test-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 14px;
 }
 
 .question-card,
 .test-summary,
 .result-panel {
-  padding: 22px;
+  padding: 18px;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
+  box-shadow: 0 10px 26px rgba(23, 32, 42, 0.06);
 }
 
 .question-card {
   display: grid;
-  gap: 15px;
-  min-height: 360px;
+  gap: 13px;
+  min-height: 320px;
   background:
-    linear-gradient(135deg, rgba(243, 181, 69, 0.14), transparent 42%),
+    linear-gradient(135deg, rgba(243, 181, 69, 0.12), transparent 44%),
+    var(--paper);
+}
+
+body[data-theme="dark"] .question-card {
+  background:
+    linear-gradient(135deg, rgba(19, 160, 145, 0.14), transparent 44%),
     var(--paper);
 }
 
@@ -588,7 +613,7 @@ body.ebook-mode .pdf-frame {
 }
 
 #questionMeaning {
-  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  font-size: clamp(1.65rem, 3.2vw, 2.75rem);
   line-height: 1.05;
 }
 
@@ -627,7 +652,7 @@ body.ebook-mode .pdf-frame {
 .test-summary {
   align-self: start;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .test-summary h3 {

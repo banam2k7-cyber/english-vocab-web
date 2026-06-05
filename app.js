@@ -26,6 +26,39 @@ const state = {
   aiImageName: "",
 };
 
+const VOCAB_CORRECTIONS = {
+  beat: { vietnamese: "đánh bại", type: "verb" },
+  "board game": { vietnamese: "trò chơi bàn cờ", type: "noun phrase" },
+  captain: { vietnamese: "đội trưởng", type: "noun" },
+  challenge: { vietnamese: "thử thách; thách đấu", type: "verb/noun" },
+  champion: { vietnamese: "nhà vô địch", type: "noun" },
+  cheat: { vietnamese: "gian lận", type: "verb" },
+  "classical music": { vietnamese: "nhạc cổ điển", type: "noun phrase" },
+  club: { vietnamese: "câu lạc bộ", type: "noun" },
+  coach: { vietnamese: "huấn luyện viên", type: "noun" },
+  competition: { vietnamese: "cuộc thi; cuộc tranh tài", type: "noun" },
+  concert: { vietnamese: "buổi hòa nhạc", type: "noun" },
+  defeat: { vietnamese: "đánh bại; thất bại", type: "verb/noun" },
+  entertaining: { vietnamese: "thú vị; mang tính giải trí", type: "adjective" },
+  "folk music": { vietnamese: "nhạc dân gian", type: "noun phrase" },
+  group: { vietnamese: "nhóm; ban nhạc", type: "noun" },
+  gym: { vietnamese: "phòng tập thể dục", type: "noun" },
+  "have fun": { vietnamese: "vui chơi; có khoảng thời gian vui vẻ", type: "verb phrase" },
+  interest: { vietnamese: "sự quan tâm; làm ai quan tâm", type: "verb/noun" },
+  member: { vietnamese: "thành viên", type: "noun" },
+  opponent: { vietnamese: "đối thủ", type: "noun" },
+  organise: { vietnamese: "tổ chức", type: "verb" },
+  pleasure: { vietnamese: "niềm vui; sự hài lòng", type: "noun" },
+  referee: { vietnamese: "trọng tài", type: "noun" },
+  rhythm: { vietnamese: "nhịp điệu", type: "noun" },
+  risk: { vietnamese: "rủi ro; mạo hiểm", type: "verb/noun" },
+  score: { vietnamese: "điểm số; ghi điểm", type: "verb/noun" },
+  support: { vietnamese: "ủng hộ; sự ủng hộ", type: "verb/noun" },
+  team: { vietnamese: "đội; nhóm", type: "noun" },
+  train: { vietnamese: "tập luyện", type: "verb" },
+  "video game": { vietnamese: "trò chơi điện tử", type: "noun phrase" },
+};
+
 const els = {
   pdfTab: document.querySelector("#pdfTab"),
   themeToggle: document.querySelector("#themeToggle"),
@@ -162,9 +195,9 @@ function createEmptyUnits() {
 function shapeWord(word, unitId) {
   if (Array.isArray(word)) {
     const [english, vietnamese, type, example] = word;
-    return { english, vietnamese, type, example, unitId };
+    return applyVocabCorrection(cleanImportedWord({ english, vietnamese, type, example, unitId }));
   }
-  return {
+  return applyVocabCorrection(cleanImportedWord({
     english: word.english || "",
     vietnamese: word.vietnamese || "",
     type: word.type || "word",
@@ -173,6 +206,50 @@ function shapeWord(word, unitId) {
     audio: word.audio || "",
     alternatives: Array.isArray(word.alternatives) ? word.alternatives : [],
     unitId: word.unitId || unitId,
+  }));
+}
+
+function cleanImportedWord(word) {
+  const english = String(word.english || "").trim();
+  const posMatch = english.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+
+  if (!posMatch) {
+    return { ...word, english };
+  }
+
+  return {
+    ...word,
+    english: posMatch[1].trim(),
+    type: mapPartOfSpeech(posMatch[2]) || word.type,
+  };
+}
+
+function mapPartOfSpeech(value) {
+  const normalized = normalize(value).replace(/\./g, "");
+  const map = {
+    v: "verb",
+    n: "noun",
+    adj: "adjective",
+    adv: "adverb",
+    phr: "phrase",
+    "n phr": "noun phrase",
+    "v phr": "verb phrase",
+    "adj phr": "adjective phrase",
+    "prep phr": "prepositional phrase",
+  };
+  return map[normalized] || "";
+}
+
+function applyVocabCorrection(word) {
+  const correction = VOCAB_CORRECTIONS[normalize(word.english)];
+  if (!correction) {
+    return word;
+  }
+
+  return {
+    ...word,
+    vietnamese: correction.vietnamese,
+    type: correction.type,
   };
 }
 
@@ -859,6 +936,10 @@ function getAiPrompt() {
     "You are a strict JSON extraction engine. Do not explain, do not add markdown, do not add comments.",
     "Read the vocabulary image.",
     "Extract only vocabulary items, phrasal verbs, prepositional phrases, word formation items, definitions if visible, part of speech, and phonetic transcription if visible.",
+    "If the image shows part of speech in parentheses such as (v), (n), (adj), or (n phr), obey it exactly and translate by that part of speech.",
+    "Do not guess a noun meaning when the image marks the item as a verb. For example, train (v) means practice/train, not railway train.",
+    "Use the book topic context. In an Entertainment and Sport unit, champion (n) means winner/title holder, not the unchanged English word.",
+    "Do not copy the English word as the Vietnamese meaning. Translate every meaning into Vietnamese.",
     "Translate meanings into Vietnamese.",
     "The first character of your response must be { and the last character must be }.",
     "Return only valid JSON with this exact shape:",
