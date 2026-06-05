@@ -14,6 +14,14 @@ const STORAGE_KEYS = {
   ebookMode: "b1Trainer.ebookMode",
 };
 
+const DEFAULT_OPENAI_MODEL = "gpt-4.1-mini";
+const DEFAULT_NVIDIA_MODEL = "meta/llama-3.2-90b-vision-instruct";
+const NVIDIA_DIRECT_ENDPOINTS = {
+  "meta/llama-4-maverick-17b-128e-instruct":
+    "https://integrate.api.nvidia.com/v1/meta/llama-4-maverick-17b-128e-instruct",
+};
+const MAX_AI_IMAGE_EDGE = 1400;
+
 const state = {
   unitId: localStorage.getItem(STORAGE_KEYS.selectedUnit) || "unit-01",
   testWords: [],
@@ -825,15 +833,35 @@ function getOxfordUrl(term) {
   return `https://www.oxfordlearnersdictionaries.com/search/english/?q=${encodeURIComponent(term)}`;
 }
 
+function loadSpeechVoices() {
+  if (!("speechSynthesis" in window)) {
+    return [];
+  }
+  return window.speechSynthesis.getVoices();
+}
+
+function pickEnglishVoice() {
+  const voices = loadSpeechVoices();
+  return (
+    voices.find((voice) => voice.lang.toLowerCase() === "en-gb") ||
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("en-gb")) ||
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("en-us")) ||
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ||
+    null
+  );
+}
+
 function speakText(text) {
   if (!("speechSynthesis" in window)) {
+    window.open(getOxfordUrl(text), "_blank", "noreferrer");
     return;
   }
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "en-GB";
+  utterance.voice = pickEnglishVoice();
   utterance.rate = 0.9;
-  window.speechSynthesis.speak(utterance);
+  window.setTimeout(() => window.speechSynthesis.speak(utterance), 80);
 }
 
 function setAiImage(dataUrl, name) {
@@ -863,12 +891,41 @@ function readImageFile(file) {
   }
 
   const reader = new FileReader();
-  reader.onload = () => setAiImage(reader.result, file.name);
+  reader.onload = () => {
+    resizeImageDataUrl(reader.result)
+      .then((dataUrl) => setAiImage(dataUrl, file.name))
+      .catch(() => setAiImage(reader.result, file.name));
+  };
   reader.onerror = () => {
     els.aiImportStatus.textContent = "Không đọc được ảnh.";
     els.aiImportStatus.className = "feedback wrong";
   };
   reader.readAsDataURL(file);
+}
+
+function resizeImageDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxEdge = Math.max(image.width, image.height);
+      if (maxEdge <= MAX_AI_IMAGE_EDGE) {
+        resolve(dataUrl);
+        return;
+      }
+
+      const scale = MAX_AI_IMAGE_EDGE / maxEdge;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(image.width * scale);
+      canvas.height = Math.round(image.height * scale);
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.88));
+    };
+    image.onerror = reject;
+    image.src = dataUrl;
+  });
 }
 
 function handleImagePaste(event) {
@@ -928,7 +985,7 @@ async function aiImportImage() {
 }
 
 function getDefaultAiModel(provider) {
-  return provider === "nvidia" ? "meta/llama-3.2-11b-vision-instruct" : "gpt-4.1-mini";
+  return provider === "nvidia" ? DEFAULT_NVIDIA_MODEL : DEFAULT_OPENAI_MODEL;
 }
 
 function getAiPrompt() {
@@ -986,7 +1043,7 @@ async function callOpenAiVisionImport({ apiKey, model, imageDataUrl }) {
     }),
   });
 
-  const data = await response.json();
+  const data = await readApiJson(response, "OpenAI");
   if (!response.ok) {
     throw new Error(data.error?.message || "OpenAI API trả lỗi.");
   }
@@ -995,10 +1052,70 @@ async function callOpenAiVisionImport({ apiKey, model, imageDataUrl }) {
 }
 
 async function callNvidiaVisionImport({ apiKey, model, imageDataUrl, proxyUrl }) {
-  const payload = {
+  const { endpoint, payload } = buildNvidiaRequest(model, imageDataUrl);
+  const headers = { "Content-Type": "application/json" };
+  const body = proxyUrl ? { apiKey, endpoint, payload } : payload;
+
+  if (!proxyUrl) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(proxyUrl || endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    if (!proxyUrl) {
+      throw new Error(
+        "NVIDIA chặn request trực tiếp từ trình duyệt (CORS). Hãy dùng Proxy URL cho NVIDIA."
+      );
+    }
+    throw error;
+  }
+
+  const data = await readApiJson(response, "NVIDIA");
+  if (!response.ok) {
+    throw new Error(data.error?.message || "NVIDIA API trả lỗi.");
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("Không đọc được nội dung từ phản hồi NVIDIA.");
+  }
+
+  return stripJsonFence(typeof content === "string" ? content : JSON.stringify(content));
+}
+
+function buildNvidiaRequest(model, imageDataUrl) {
+  const directEndpoint = NVIDIA_DIRECT_ENDPOINTS[model];
+
+  if (directEndpoint) {
+    return {
+      endpoint: directEndpoint,
+      payload: {
+        model,
+        temperature: 0,
+        max_tokens: 1600,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "user",
+            content: `${getAiPrompt()}\n<img src="${imageDataUrl}" />`,
+          },
+        ],
+      },
+    };
+  }
+
+  return {
+    endpoint: "https://integrate.api.nvidia.com/v1/chat/completions",
+    payload: {
     model,
-    temperature: 0.1,
-    max_tokens: 2048,
+    temperature: 0,
+    max_tokens: 1600,
     response_format: { type: "json_object" },
     messages: [
       {
@@ -1022,42 +1139,31 @@ async function callNvidiaVisionImport({ apiKey, model, imageDataUrl, proxyUrl })
         ],
       },
     ],
+    },
   };
-  const endpoint = proxyUrl || "https://integrate.api.nvidia.com/v1/chat/completions";
-  const headers = { "Content-Type": "application/json" };
-  const body = proxyUrl ? { apiKey, payload } : payload;
+}
 
-  if (!proxyUrl) {
-    headers.Authorization = `Bearer ${apiKey}`;
+async function readApiJson(response, providerName) {
+  const text = await response.text();
+  const data = tryParseJson(text);
+  if (data) {
+    return data;
   }
 
-  let response;
-  try {
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    if (!proxyUrl) {
-      throw new Error(
-        "NVIDIA chặn request trực tiếp từ trình duyệt (CORS). Hãy dùng Proxy URL cho NVIDIA."
-      );
-    }
-    throw error;
+  const preview = stripHtml(text).slice(0, 160).replace(/\s+/g, " ").trim();
+  if (response.status === 524 || preview.toLowerCase().includes("error code: 524")) {
+    throw new Error(
+      `${providerName} bị timeout qua proxy Cloudflare (524). Hãy thử lại, giảm ảnh, hoặc đổi sang model nhanh hơn.`
+    );
   }
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error?.message || "NVIDIA API trả lỗi.");
-  }
+  throw new Error(
+    `${providerName} trả phản hồi không phải JSON (${response.status}). Phản hồi bắt đầu bằng: ${preview || "trống"}`
+  );
+}
 
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("Không đọc được nội dung từ phản hồi NVIDIA.");
-  }
-
-  return stripJsonFence(typeof content === "string" ? content : JSON.stringify(content));
+function stripHtml(value) {
+  return String(value || "").replace(/<[^>]*>/g, " ");
 }
 
 function getUnitImportJsonSchema() {
@@ -1236,6 +1342,10 @@ function bindEvents() {
 async function init() {
   applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
   applyEbookMode(localStorage.getItem(STORAGE_KEYS.ebookMode) === "1");
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = loadSpeechVoices;
+    loadSpeechVoices();
+  }
   initUnitControls();
   bindEvents();
   renderAll();
