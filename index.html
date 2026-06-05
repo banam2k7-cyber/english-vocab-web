@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Destination B1 Vocabulary Trainer</title>
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <div class="app">
@@ -86,10 +86,15 @@
               <p class="eyebrow">Original book</p>
               <h2>Mở file PDF gốc trong app</h2>
             </div>
-            <label class="file-button">
-              Chọn PDF
-              <input id="pdfInput" type="file" accept="application/pdf" />
-            </label>
+            <div class="pdf-actions">
+              <button class="ghost-button" id="ebookModeButton" type="button">
+                Ebook mode
+              </button>
+              <label class="file-button">
+                Chọn PDF
+                <input id="pdfInput" type="file" accept="application/pdf" />
+              </label>
+            </div>
           </div>
           <p class="panel-note" id="pdfFileName">
             Chọn file `Destination-B1.pdf` một lần. App sẽ lưu file trong trình duyệt;
@@ -327,6 +332,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=9"></script>
+    <script src="app.js?v=10"></script>
   </body>
 </html>

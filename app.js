@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   progress: "b1Trainer.progress",
   selectedUnit: "b1Trainer.selectedUnit",
   theme: "b1Trainer.theme",
+  ebookMode: "b1Trainer.ebookMode",
 };
 
 const state = {
@@ -28,6 +29,7 @@ const state = {
 const els = {
   pdfTab: document.querySelector("#pdfTab"),
   themeToggle: document.querySelector("#themeToggle"),
+  ebookModeButton: document.querySelector("#ebookModeButton"),
   learnTab: document.querySelector("#learnTab"),
   testTab: document.querySelector("#testTab"),
   addTab: document.querySelector("#addTab"),
@@ -117,6 +119,16 @@ function applyTheme(theme) {
 function toggleTheme() {
   const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
   applyTheme(nextTheme);
+}
+
+function applyEbookMode(isEnabled) {
+  document.body.classList.toggle("ebook-mode", isEnabled);
+  localStorage.setItem(STORAGE_KEYS.ebookMode, isEnabled ? "1" : "0");
+  els.ebookModeButton.textContent = isEnabled ? "Thoát ebook" : "Ebook mode";
+}
+
+function toggleEbookMode() {
+  applyEbookMode(!document.body.classList.contains("ebook-mode"));
 }
 
 function normalize(value) {
@@ -1063,6 +1075,7 @@ function clearImportedData() {
 
 function bindEvents() {
   els.themeToggle.addEventListener("click", toggleTheme);
+  els.ebookModeButton.addEventListener("click", toggleEbookMode);
   els.pdfInput.addEventListener("change", handlePdfFile);
   els.unitSelect.addEventListener("change", () => setUnit(els.unitSelect.value));
   els.importUnitInput.addEventListener("change", () => {
@@ -1140,6 +1153,7 @@ function bindEvents() {
 
 async function init() {
   applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
+  applyEbookMode(localStorage.getItem(STORAGE_KEYS.ebookMode) === "1");
   initUnitControls();
   bindEvents();
   renderAll();
