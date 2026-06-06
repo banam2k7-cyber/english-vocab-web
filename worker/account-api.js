@@ -5,7 +5,7 @@ const corsHeaders = {
 };
 
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
-const PASSWORD_ITERATIONS = 150000;
+const PASSWORD_ITERATIONS = 100000;
 
 export default {
   async fetch(request, env) {
