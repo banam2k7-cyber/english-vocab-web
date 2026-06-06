@@ -18,11 +18,11 @@ export default {
       const path = url.pathname.replace(/\/+$/, "") || "/";
 
       if (request.method === "POST" && path === "/auth/register") {
-        return register(request, env);
+        return await register(request, env);
       }
 
       if (request.method === "POST" && path === "/auth/login") {
-        return login(request, env);
+        return await login(request, env);
       }
 
       if (request.method === "GET" && path === "/me") {
@@ -32,13 +32,13 @@ export default {
 
       if (request.method === "GET" && path === "/data") {
         const user = await requireUser(request, env);
-        return getUserData(env, user.id);
+        return await getUserData(env, user.id);
       }
 
       if (request.method === "PUT" && path === "/data") {
         const user = await requireUser(request, env);
         const body = await readJson(request);
-        return saveUserData(env, user.id, body.data);
+        return await saveUserData(env, user.id, body.data);
       }
 
       return jsonResponse({ error: { message: "Not found." } }, 404);
