@@ -5,4 +5,4 @@ compatibility_date = "2026-06-05"
 [[d1_databases]]
 binding = "DB"
 database_name = "english-vocab-account-db"
-database_id = "replace-with-d1-database-id"
+database_id = "6fc2bc39-ec11-459a-866e-98c18daa9c5d"
