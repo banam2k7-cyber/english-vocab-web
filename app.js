@@ -543,6 +543,20 @@ function switchPanel(panelName) {
   const [tab, panel] = map[panelName];
   tab.classList.add("active");
   panel.classList.add("active");
+  document.body.dataset.activePanel = panelName;
+
+  if (window.matchMedia("(max-width: 760px)").matches) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const headerHeight = document.querySelector(".sidebar")?.getBoundingClientRect().height || 0;
+        const panelTop = panel.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({
+          top: Math.max(0, panelTop - headerHeight - 8),
+          behavior: "smooth",
+        });
+      });
+    });
+  }
 }
 
 function renderAll() {
