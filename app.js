@@ -1359,7 +1359,7 @@ async function fetchCompatibleApi({ apiKey, endpoint, method, payload, proxyUrl 
   const normalizedMethod = method || "POST";
 
   try {
-    if (proxyUrl) {
+    if (proxyUrl && isNvidiaCompatibleUrl()) {
       return await fetch(proxyUrl, {
         method: "POST",
         headers,
