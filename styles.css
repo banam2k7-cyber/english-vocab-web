@@ -1859,8 +1859,8 @@ body[data-theme="dark"] .workspace::before {
 }
 
 .hero {
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
-  min-height: 230px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(390px, 0.8fr);
+  min-height: 300px;
   border-color: color-mix(in srgb, var(--line), transparent 18%);
   box-shadow: 0 16px 40px rgba(56, 53, 47, 0.07);
 }
@@ -1873,7 +1873,12 @@ body[data-theme="dark"] .workspace::before {
 }
 
 .hero-image {
-  min-height: 230px;
+  align-self: stretch;
+  min-height: 300px;
+  padding: 18px;
+  background: #fbf6ec;
+  object-fit: contain;
+  object-position: center;
 }
 
 h1 {
@@ -1966,8 +1971,10 @@ h1 {
   }
 
   .hero-image {
-    min-height: 132px;
-    max-height: 132px;
+    min-height: 210px;
+    max-height: 210px;
+    padding: 10px;
+    object-fit: contain;
   }
 
   h1 {
