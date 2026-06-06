@@ -2,7 +2,16 @@ const DEFAULT_UNIT_COUNT = 42;
 const PDF_DB_NAME = "b1TrainerPdfDb";
 const PDF_DB_VERSION = 1;
 const PDF_STORE_NAME = "files";
-const PDF_RECORD_KEY = "book";
+const PDF_RECORD_PREFIX = "book";
+const DEFAULT_ACCOUNT_API_URL = "https://english-vocab-account-api.banam2k7.workers.dev";
+const ACCOUNT_API_URL_KEY = "b1Trainer.account.apiUrl";
+const SYNC_DEBOUNCE_MS = 700;
+
+const AUTH_KEYS = {
+  users: "b1Trainer.auth.users",
+  currentUser: "b1Trainer.auth.currentUser",
+  sessionToken: "b1Trainer.auth.sessionToken",
+};
 
 const STORAGE_KEYS = {
   imported: "b1Trainer.importedUnits",
@@ -12,6 +21,10 @@ const STORAGE_KEYS = {
   selectedUnit: "b1Trainer.selectedUnit",
   theme: "b1Trainer.theme",
   ebookMode: "b1Trainer.ebookMode",
+  aiApiKey: "b1Trainer.ai.apiKey",
+  aiBaseUrl: "b1Trainer.ai.baseUrl",
+  aiModel: "b1Trainer.ai.model",
+  avatar: "b1Trainer.profile.avatar",
 };
 
 const DEFAULT_COMPATIBLE_BASE_URL = "https://api.openai.com/v1";
@@ -67,7 +80,9 @@ const AI_MODEL_PRESETS = {
 };
 
 const state = {
-  unitId: localStorage.getItem(STORAGE_KEYS.selectedUnit) || "unit-01",
+  currentUser: localStorage.getItem(AUTH_KEYS.currentUser) || "",
+  sessionToken: localStorage.getItem(AUTH_KEYS.sessionToken) || "",
+  unitId: "unit-01",
   testWords: [],
   currentIndex: 0,
   score: 0,
@@ -76,6 +91,8 @@ const state = {
   pdfUrl: "",
   aiImageDataUrl: "",
   aiImageName: "",
+  syncTimer: 0,
+  isApplyingRemoteData: false,
 };
 
 const VOCAB_CORRECTIONS = {
@@ -183,9 +200,51 @@ const els = {
   aiImportButton: document.querySelector("#aiImportButton"),
   clearImageButton: document.querySelector("#clearImageButton"),
   aiImportStatus: document.querySelector("#aiImportStatus"),
+  accountButton: document.querySelector("#accountButton"),
+  accountAvatar: document.querySelector("#accountAvatar"),
+  accountButtonText: document.querySelector("#accountButtonText"),
+  accountMenu: document.querySelector("#accountMenu"),
+  accountMenuAvatar: document.querySelector("#accountMenuAvatar"),
+  accountSyncLabel: document.querySelector("#accountSyncLabel"),
+  avatarInput: document.querySelector("#avatarInput"),
+  removeAvatarButton: document.querySelector("#removeAvatarButton"),
+  userNameLabel: document.querySelector("#userNameLabel"),
+  logoutButton: document.querySelector("#logoutButton"),
+  authOverlay: document.querySelector("#authOverlay"),
+  authForm: document.querySelector("#authForm"),
+  authUsernameInput: document.querySelector("#authUsernameInput"),
+  authPasswordInput: document.querySelector("#authPasswordInput"),
+  accountApiUrlInput: document.querySelector("#accountApiUrlInput"),
+  registerButton: document.querySelector("#registerButton"),
+  authCancelButton: document.querySelector("#authCancelButton"),
+  authStatus: document.querySelector("#authStatus"),
 };
 
-function loadJson(key, fallback) {
+function getActiveUserId() {
+  return normalizeUsername(state.currentUser) || "guest";
+}
+
+function scopedKey(key) {
+  return `${key}.${getActiveUserId()}`;
+}
+
+function scopedGetItem(key) {
+  return localStorage.getItem(scopedKey(key));
+}
+
+function scopedSetItem(key, value) {
+  localStorage.setItem(scopedKey(key), value);
+}
+
+function scopedRemoveItem(key) {
+  localStorage.removeItem(scopedKey(key));
+}
+
+function getPdfRecordKey() {
+  return `${PDF_RECORD_PREFIX}.${getActiveUserId()}`;
+}
+
+function loadGlobalJson(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key)) ?? fallback;
   } catch {
@@ -193,15 +252,32 @@ function loadJson(key, fallback) {
   }
 }
 
-function saveJson(key, value) {
+function saveGlobalJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function applyTheme(theme) {
+function loadJson(key, fallback) {
+  try {
+    return JSON.parse(scopedGetItem(key)) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveJson(key, value) {
+  scopedSetItem(key, JSON.stringify(value));
+  queueRemoteSync();
+}
+
+function applyTheme(theme, options = {}) {
   document.body.dataset.theme = theme;
+  scopedSetItem(STORAGE_KEYS.theme, theme);
   localStorage.setItem(STORAGE_KEYS.theme, theme);
   els.themeToggle.textContent = theme === "dark" ? "☀" : "☾";
   els.themeToggle.title = theme === "dark" ? "Chế độ sáng" : "Chế độ tối";
+  if (options.sync !== false) {
+    queueRemoteSync();
+  }
 }
 
 function toggleTheme() {
@@ -209,10 +285,14 @@ function toggleTheme() {
   applyTheme(nextTheme);
 }
 
-function applyEbookMode(isEnabled) {
+function applyEbookMode(isEnabled, options = {}) {
   document.body.classList.toggle("ebook-mode", isEnabled);
+  scopedSetItem(STORAGE_KEYS.ebookMode, isEnabled ? "1" : "0");
   localStorage.setItem(STORAGE_KEYS.ebookMode, isEnabled ? "1" : "0");
   els.ebookModeButton.textContent = isEnabled ? "Thoát ebook" : "Ebook mode";
+  if (options.sync !== false) {
+    queueRemoteSync();
+  }
 }
 
 function toggleEbookMode() {
@@ -249,6 +329,10 @@ function isNvidiaCompatibleUrl() {
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizeUsername(value) {
+  return normalize(value).replace(/[^a-z0-9._-]/g, "").slice(0, 32);
 }
 
 function escapeHtml(value) {
@@ -435,7 +519,9 @@ function setUnit(unitId) {
   state.unitId = unitId;
   state.testWords = [];
   state.results = [];
+  scopedSetItem(STORAGE_KEYS.selectedUnit, unitId);
   localStorage.setItem(STORAGE_KEYS.selectedUnit, unitId);
+  queueRemoteSync();
   initUnitControls();
   renderAll();
 }
@@ -729,7 +815,8 @@ function clearCustomWords() {
   if (!window.confirm("Xóa toàn bộ từ bạn đã tự thêm?")) {
     return;
   }
-  localStorage.removeItem(STORAGE_KEYS.custom);
+  scopedRemoveItem(STORAGE_KEYS.custom);
+  queueRemoteSync();
   initUnitControls();
   renderAll();
 }
@@ -768,7 +855,7 @@ async function savePdfFile(file) {
     const transaction = db.transaction(PDF_STORE_NAME, "readwrite");
     const store = transaction.objectStore(PDF_STORE_NAME);
     store.put({
-      id: PDF_RECORD_KEY,
+      id: getPdfRecordKey(),
       name: file.name,
       type: file.type,
       lastModified: file.lastModified,
@@ -785,7 +872,7 @@ async function loadSavedPdfFile() {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(PDF_STORE_NAME, "readonly");
     const store = transaction.objectStore(PDF_STORE_NAME);
-    const request = store.get(PDF_RECORD_KEY);
+    const request = store.get(getPdfRecordKey());
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error);
   });
@@ -825,7 +912,9 @@ function importParsedData(parsed, targetUnitId) {
   units[targetIndex] = importedUnit;
   saveJson(STORAGE_KEYS.imported, units);
   state.unitId = importedUnit.id;
+  scopedSetItem(STORAGE_KEYS.selectedUnit, state.unitId);
   localStorage.setItem(STORAGE_KEYS.selectedUnit, state.unitId);
+  queueRemoteSync();
   initUnitControls();
   renderAll();
   return importedUnit;
@@ -977,6 +1066,62 @@ function readImageFile(file) {
   reader.readAsDataURL(file);
 }
 
+function readAvatarFile(file) {
+  if (!file || !file.type.startsWith("image/")) {
+    els.accountSyncLabel.textContent = "File không phải ảnh.";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    resizeAvatarDataUrl(reader.result)
+      .then((dataUrl) => {
+        scopedSetItem(STORAGE_KEYS.avatar, dataUrl);
+        renderAuthState();
+        queueRemoteSync();
+        els.accountMenu.classList.remove("hidden");
+        els.accountButton.setAttribute("aria-expanded", "true");
+        els.accountSyncLabel.textContent = "Đã đổi ảnh đại diện";
+      })
+      .catch(() => {
+        els.accountSyncLabel.textContent = "Không đọc được ảnh.";
+      });
+  };
+  reader.onerror = () => {
+    els.accountSyncLabel.textContent = "Không đọc được ảnh.";
+  };
+  reader.readAsDataURL(file);
+}
+
+function resizeAvatarDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const size = 320;
+      const edge = Math.min(image.width, image.height);
+      const sourceX = Math.round((image.width - edge) / 2);
+      const sourceY = Math.round((image.height - edge) / 2);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, sourceX, sourceY, edge, edge, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/jpeg", 0.86));
+    };
+    image.onerror = reject;
+    image.src = dataUrl;
+  });
+}
+
+function removeAvatar() {
+  scopedRemoveItem(STORAGE_KEYS.avatar);
+  renderAuthState();
+  queueRemoteSync();
+  els.accountMenu.classList.remove("hidden");
+  els.accountButton.setAttribute("aria-expanded", "true");
+  els.accountSyncLabel.textContent = "Đã xóa ảnh đại diện";
+}
+
 function resizeImageDataUrl(dataUrl) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -1016,6 +1161,7 @@ function handleImagePaste(event) {
 async function aiImportImage() {
   const apiKey = els.aiApiKeyInput.value.trim();
   const model = getSelectedAiModel();
+  saveAiSettings();
 
   if (!apiKey) {
     els.aiImportStatus.textContent = "Bạn cần nhập API key.";
@@ -1081,6 +1227,7 @@ async function loadAiModelsFromEndpoint() {
       throw new Error("Phản hồi /models không có danh sách model.");
     }
     setLoadedModelOptions(modelIds);
+    saveAiSettings();
     els.aiImportStatus.textContent = `Đã tải ${modelIds.length} model từ /models.`;
     els.aiImportStatus.className = "feedback correct";
   } catch (error) {
@@ -1352,13 +1499,317 @@ function tryParseJson(value) {
   }
 }
 
+function getAccountApiUrl() {
+  const value =
+    els.accountApiUrlInput?.value.trim() ||
+    localStorage.getItem(ACCOUNT_API_URL_KEY) ||
+    DEFAULT_ACCOUNT_API_URL;
+  return value.replace(/\/+$/, "");
+}
+
+function initializeAccountApiInput() {
+  if (!els.accountApiUrlInput) {
+    return;
+  }
+  els.accountApiUrlInput.value = localStorage.getItem(ACCOUNT_API_URL_KEY) || DEFAULT_ACCOUNT_API_URL;
+}
+
+function setAuthStatus(message, statusClass = "") {
+  els.authStatus.textContent = message;
+  els.authStatus.className = `feedback ${statusClass}`.trim();
+}
+
+function getAvatarDataUrl() {
+  return scopedGetItem(STORAGE_KEYS.avatar) || "";
+}
+
+function getAccountInitial() {
+  const source = state.currentUser || "B1";
+  return source.slice(0, state.currentUser ? 1 : 2).toUpperCase();
+}
+
+function renderAvatar(target, avatarDataUrl) {
+  if (!target) {
+    return;
+  }
+  target.innerHTML = avatarDataUrl
+    ? `<img src="${escapeHtml(avatarDataUrl)}" alt="" />`
+    : escapeHtml(getAccountInitial());
+}
+
+function renderAuthState() {
+  const isLoggedIn = Boolean(state.sessionToken && state.currentUser);
+  const avatarDataUrl = isLoggedIn ? getAvatarDataUrl() : "";
+
+  els.authOverlay.classList.add("hidden");
+  els.accountMenu.classList.add("hidden");
+  els.accountButton.setAttribute("aria-expanded", "false");
+  els.logoutButton.classList.toggle("hidden", !isLoggedIn);
+  els.removeAvatarButton.classList.toggle("hidden", !isLoggedIn || !avatarDataUrl);
+  els.accountButtonText.textContent = isLoggedIn ? state.currentUser : "Đăng nhập / Đăng kí";
+  els.userNameLabel.textContent = isLoggedIn ? state.currentUser : "Chưa đăng nhập";
+  els.accountSyncLabel.textContent = isLoggedIn ? "Sẵn sàng đồng bộ" : "Đăng nhập để đồng bộ";
+  renderAvatar(els.accountAvatar, avatarDataUrl);
+  renderAvatar(els.accountMenuAvatar, avatarDataUrl);
+}
+
+function openAuthDialog() {
+  els.accountMenu.classList.add("hidden");
+  els.accountButton.setAttribute("aria-expanded", "false");
+  els.authOverlay.classList.remove("hidden");
+  window.setTimeout(() => els.authUsernameInput.focus(), 0);
+}
+
+function closeAuthDialog() {
+  els.authOverlay.classList.add("hidden");
+  setAuthStatus("");
+}
+
+function toggleAccountMenu() {
+  if (!state.sessionToken || !state.currentUser) {
+    openAuthDialog();
+    return;
+  }
+
+  const isOpen = !els.accountMenu.classList.contains("hidden");
+  els.accountMenu.classList.toggle("hidden", isOpen);
+  els.accountButton.setAttribute("aria-expanded", String(!isOpen));
+}
+
+async function accountFetch(path, options = {}) {
+  const apiUrl = getAccountApiUrl();
+  if (!apiUrl) {
+    throw new Error("ChÆ°a cáº¥u hÃ¬nh Account API URL.");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (state.sessionToken) {
+    headers.Authorization = `Bearer ${state.sessionToken}`;
+  }
+
+  const response = await fetch(`${apiUrl}${path}`, {
+    ...options,
+    headers,
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Account API lá»—i ${response.status}.`);
+  }
+
+  return data;
+}
+
+function getUserDataSnapshot() {
+  return {
+    imported: loadJson(STORAGE_KEYS.imported, []),
+    custom: loadJson(STORAGE_KEYS.custom, []),
+    mastered: loadJson(STORAGE_KEYS.mastered, {}),
+    progress: loadJson(STORAGE_KEYS.progress, {}),
+    selectedUnit: scopedGetItem(STORAGE_KEYS.selectedUnit) || state.unitId,
+    theme: scopedGetItem(STORAGE_KEYS.theme) || localStorage.getItem(STORAGE_KEYS.theme) || "light",
+    ebookMode:
+      scopedGetItem(STORAGE_KEYS.ebookMode) ||
+      localStorage.getItem(STORAGE_KEYS.ebookMode) ||
+      "0",
+    aiApiKey: scopedGetItem(STORAGE_KEYS.aiApiKey) || "",
+    aiBaseUrl: scopedGetItem(STORAGE_KEYS.aiBaseUrl) || DEFAULT_COMPATIBLE_BASE_URL,
+    aiModel: scopedGetItem(STORAGE_KEYS.aiModel) || getSelectedAiModel(),
+    avatar: scopedGetItem(STORAGE_KEYS.avatar) || "",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function hasRemoteData(data) {
+  if (!data || typeof data !== "object") {
+    return false;
+  }
+  return Boolean(
+    data.aiApiKey ||
+      data.aiBaseUrl ||
+      data.avatar ||
+      (Array.isArray(data.imported) && data.imported.length) ||
+      (Array.isArray(data.custom) && data.custom.length) ||
+      (data.mastered && Object.keys(data.mastered).length) ||
+      (data.progress && Object.keys(data.progress).length)
+  );
+}
+
+function applyUserDataSnapshot(data) {
+  const snapshot = data || {};
+  state.isApplyingRemoteData = true;
+  try {
+    scopedSetItem(STORAGE_KEYS.imported, JSON.stringify(snapshot.imported || []));
+    scopedSetItem(STORAGE_KEYS.custom, JSON.stringify(snapshot.custom || []));
+    scopedSetItem(STORAGE_KEYS.mastered, JSON.stringify(snapshot.mastered || {}));
+    scopedSetItem(STORAGE_KEYS.progress, JSON.stringify(snapshot.progress || {}));
+    scopedSetItem(STORAGE_KEYS.selectedUnit, snapshot.selectedUnit || "unit-01");
+    scopedSetItem(STORAGE_KEYS.theme, snapshot.theme || "light");
+    scopedSetItem(STORAGE_KEYS.ebookMode, snapshot.ebookMode === "1" ? "1" : "0");
+    scopedSetItem(STORAGE_KEYS.aiApiKey, snapshot.aiApiKey || "");
+    scopedSetItem(STORAGE_KEYS.aiBaseUrl, snapshot.aiBaseUrl || DEFAULT_COMPATIBLE_BASE_URL);
+    scopedSetItem(STORAGE_KEYS.aiModel, snapshot.aiModel || DEFAULT_COMPATIBLE_MODEL);
+    scopedSetItem(STORAGE_KEYS.avatar, snapshot.avatar || "");
+
+    state.unitId = snapshot.selectedUnit || "unit-01";
+    localStorage.setItem(STORAGE_KEYS.selectedUnit, state.unitId);
+    applyTheme(snapshot.theme || "light", { sync: false });
+    applyEbookMode(snapshot.ebookMode === "1", { sync: false });
+    applyAiSettingsFromStorage();
+    renderAuthState();
+  } finally {
+    state.isApplyingRemoteData = false;
+  }
+}
+
+function applyAiSettingsFromStorage() {
+  els.aiApiKeyInput.value = scopedGetItem(STORAGE_KEYS.aiApiKey) || "";
+  els.aiBaseUrlInput.value = scopedGetItem(STORAGE_KEYS.aiBaseUrl) || DEFAULT_COMPATIBLE_BASE_URL;
+  updateAiModelOptions();
+  const savedModel = scopedGetItem(STORAGE_KEYS.aiModel) || DEFAULT_COMPATIBLE_MODEL;
+  if (![...els.aiModelSelect.options].some((option) => option.value === savedModel)) {
+    els.aiModelSelect.append(new Option(savedModel, savedModel));
+  }
+  els.aiModelSelect.value = savedModel;
+}
+
+function saveAiSettings() {
+  scopedSetItem(STORAGE_KEYS.aiApiKey, els.aiApiKeyInput.value.trim());
+  scopedSetItem(STORAGE_KEYS.aiBaseUrl, getCompatibleBaseUrl());
+  scopedSetItem(STORAGE_KEYS.aiModel, getSelectedAiModel());
+  queueRemoteSync();
+}
+
+function queueRemoteSync() {
+  if (state.isApplyingRemoteData || !state.sessionToken) {
+    return;
+  }
+  window.clearTimeout(state.syncTimer);
+  state.syncTimer = window.setTimeout(syncUserData, SYNC_DEBOUNCE_MS);
+}
+
+async function syncUserData() {
+  if (!state.sessionToken) {
+    return;
+  }
+  try {
+    await accountFetch("/data", {
+      method: "PUT",
+      body: JSON.stringify({ data: getUserDataSnapshot() }),
+    });
+    if (!els.authOverlay.classList.contains("hidden")) {
+      return;
+    }
+    els.accountSyncLabel.textContent = "Đã đồng bộ";
+    els.userNameLabel.textContent = state.currentUser;
+  } catch (error) {
+    els.accountSyncLabel.textContent = "Sync lỗi";
+    els.userNameLabel.textContent = state.currentUser;
+    console.warn("Sync failed", error);
+  }
+}
+
+async function loadRemoteUserData() {
+  const response = await accountFetch("/data");
+  if (hasRemoteData(response?.data)) {
+    applyUserDataSnapshot(response.data);
+  } else {
+    await syncUserData();
+  }
+}
+
+async function restoreSession() {
+  initializeAccountApiInput();
+  renderAuthState();
+  if (!state.sessionToken) {
+    return;
+  }
+
+  try {
+    const response = await accountFetch("/me");
+    state.currentUser = response.user.username;
+    localStorage.setItem(AUTH_KEYS.currentUser, state.currentUser);
+    await loadRemoteUserData();
+  } catch (error) {
+    logout(false);
+    setAuthStatus(`PhiÃªn Ä‘Äƒng nháº­p háº¿t háº¡n: ${error.message}`, "wrong");
+  } finally {
+    renderAuthState();
+  }
+}
+
+async function authenticate(mode) {
+  const username = normalizeUsername(els.authUsernameInput.value);
+  const password = els.authPasswordInput.value;
+  const localSnapshot = getUserDataSnapshot();
+
+  if (!username || !password) {
+    setAuthStatus("Nháº­p tÃªn tÃ i khoáº£n vÃ  máº­t kháº©u.", "wrong");
+    return;
+  }
+
+  if (password.length < 6) {
+    setAuthStatus("Máº­t kháº©u cáº§n Ã­t nháº¥t 6 kÃ½ tá»±.", "wrong");
+    return;
+  }
+
+  localStorage.setItem(ACCOUNT_API_URL_KEY, getAccountApiUrl());
+  setAuthStatus(mode === "register" ? "Äang táº¡o tÃ i khoáº£n..." : "Äang Ä‘Äƒng nháº­p...");
+
+  try {
+    const response = await accountFetch(`/auth/${mode}`, {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    state.currentUser = response.user.username;
+    state.sessionToken = response.token;
+    localStorage.setItem(AUTH_KEYS.currentUser, state.currentUser);
+    localStorage.setItem(AUTH_KEYS.sessionToken, state.sessionToken);
+
+    if (hasRemoteData(response.data)) {
+      applyUserDataSnapshot(response.data);
+    } else {
+      applyUserDataSnapshot(localSnapshot);
+      await syncUserData();
+    }
+
+    els.authPasswordInput.value = "";
+    initUnitControls();
+    renderAll();
+    renderAuthState();
+    setAuthStatus("");
+  } catch (error) {
+    setAuthStatus(error.message, "wrong");
+  }
+}
+
+function logout(shouldRender = true) {
+  state.sessionToken = "";
+  state.currentUser = "";
+  localStorage.removeItem(AUTH_KEYS.sessionToken);
+  localStorage.removeItem(AUTH_KEYS.currentUser);
+  if (shouldRender) {
+    state.unitId = scopedGetItem(STORAGE_KEYS.selectedUnit) || "unit-01";
+    applyAiSettingsFromStorage();
+    initUnitControls();
+    renderAll();
+    renderAuthState();
+  }
+}
+
 function clearImportedData() {
   if (!window.confirm("Xóa toàn bộ dữ liệu import?")) {
     return;
   }
-  localStorage.removeItem(STORAGE_KEYS.imported);
+  scopedRemoveItem(STORAGE_KEYS.imported);
   state.unitId = "unit-01";
+  scopedSetItem(STORAGE_KEYS.selectedUnit, state.unitId);
   localStorage.setItem(STORAGE_KEYS.selectedUnit, state.unitId);
+  queueRemoteSync();
   initUnitControls();
   renderAll();
   els.importStatus.textContent = "Đã xóa dữ liệu import.";
@@ -1440,31 +1891,74 @@ function bindEvents() {
   els.aiImportButton.addEventListener("click", aiImportImage);
   els.aiProviderInput.addEventListener("change", () => {
     updateAiModelOptions();
+    saveAiSettings();
   });
   els.aiBaseUrlInput.addEventListener("change", () => {
     updateAiModelOptions();
+    saveAiSettings();
     if (els.aiApiKeyInput.value.trim()) {
       loadAiModelsFromEndpoint();
     }
   });
   els.aiApiKeyInput.addEventListener("change", () => {
+    saveAiSettings();
     if (els.aiApiKeyInput.value.trim()) {
       loadAiModelsFromEndpoint();
     }
   });
+  els.aiModelSelect.addEventListener("change", saveAiSettings);
   els.loadModelsButton.addEventListener("click", loadAiModelsFromEndpoint);
+  els.accountButton.addEventListener("click", toggleAccountMenu);
+  els.avatarInput.addEventListener("change", () => {
+    readAvatarFile(els.avatarInput.files[0]);
+    els.avatarInput.value = "";
+  });
+  els.removeAvatarButton.addEventListener("click", removeAvatar);
+  els.authForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    authenticate("login");
+  });
+  els.registerButton.addEventListener("click", () => authenticate("register"));
+  els.authCancelButton.addEventListener("click", closeAuthDialog);
+  els.logoutButton.addEventListener("click", () => {
+    logout();
+    els.accountMenu.classList.add("hidden");
+  });
+  els.accountApiUrlInput?.addEventListener("change", () => {
+    localStorage.setItem(ACCOUNT_API_URL_KEY, getAccountApiUrl());
+  });
+  document.addEventListener("click", (event) => {
+    if (
+      els.accountMenu.classList.contains("hidden") ||
+      els.accountMenu.contains(event.target) ||
+      els.accountButton.contains(event.target)
+    ) {
+      return;
+    }
+    els.accountMenu.classList.add("hidden");
+    els.accountButton.setAttribute("aria-expanded", "false");
+  });
 }
 
 async function init() {
-  applyTheme(localStorage.getItem(STORAGE_KEYS.theme) || "light");
-  applyEbookMode(localStorage.getItem(STORAGE_KEYS.ebookMode) === "1");
+  initializeAccountApiInput();
+  applyTheme(scopedGetItem(STORAGE_KEYS.theme) || localStorage.getItem(STORAGE_KEYS.theme) || "light", {
+    sync: false,
+  });
+  applyEbookMode(
+    (scopedGetItem(STORAGE_KEYS.ebookMode) || localStorage.getItem(STORAGE_KEYS.ebookMode)) === "1",
+    { sync: false }
+  );
   if ("speechSynthesis" in window) {
     window.speechSynthesis.onvoiceschanged = loadSpeechVoices;
     loadSpeechVoices();
   }
   updateAiModelOptions();
-  initUnitControls();
+  applyAiSettingsFromStorage();
   bindEvents();
+  await restoreSession();
+  state.unitId = scopedGetItem(STORAGE_KEYS.selectedUnit) || localStorage.getItem(STORAGE_KEYS.selectedUnit) || "unit-01";
+  initUnitControls();
   renderAll();
   try {
     const savedPdf = await loadSavedPdfFile();

@@ -109,26 +109,127 @@ select:focus {
   margin-bottom: 0;
 }
 
-.brand-mark {
+.account-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  max-width: 126px;
+  padding: 2px 8px 2px 2px;
+  color: var(--sidebar-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.account-button:hover,
+.account-button:focus-visible {
+  background: color-mix(in srgb, var(--paper), var(--wash) 55%);
+  border-color: var(--line);
+}
+
+.account-avatar {
+  position: relative;
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  overflow: hidden;
+  color: #fff;
   background: var(--teal);
+  border-radius: 8px;
   font-weight: 900;
+  line-height: 1;
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-avatar.large {
+  width: 44px;
+  height: 44px;
+}
+
+.account-button-text {
+  overflow: hidden;
+  max-width: 68px;
+  color: var(--sidebar-text) !important;
+  font-size: 0.74rem !important;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: normal !important;
 }
 
 .brand strong,
-.brand span {
+.brand > div > span {
   display: block;
   white-space: nowrap;
 }
 
-.brand span {
+.brand > div > span {
   margin-top: 1px;
   color: var(--sidebar-muted);
   font-size: 0.82rem;
+}
+
+.account-menu {
+  position: fixed;
+  top: 58px;
+  left: 16px;
+  z-index: 80;
+  display: grid;
+  gap: 10px;
+  width: min(300px, calc(100vw - 32px));
+  padding: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.account-menu-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.account-menu-head strong,
+.account-menu-head span {
+  display: block;
+}
+
+.account-menu-head span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.mini-file-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #fff;
+  background: var(--teal);
+  border-radius: 8px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.mini-file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .theme-toggle {
@@ -842,6 +943,42 @@ body[data-theme="dark"] .question-card {
 
 .hidden {
   display: none !important;
+}
+
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(13, 20, 25, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.auth-card {
+  display: grid;
+  gap: 12px;
+  width: min(420px, 100%);
+  padding: 22px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.auth-card label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 @media (max-width: 1040px) {

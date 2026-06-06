@@ -1,0 +1,8 @@
+name = "english-vocab-account-api"
+main = "account-api.js"
+compatibility_date = "2026-06-05"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "english-vocab-account-db"
+database_id = "replace-with-d1-database-id"

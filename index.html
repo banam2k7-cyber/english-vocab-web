@@ -4,17 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Destination B1 Vocabulary Trainer</title>
-    <link rel="stylesheet" href="styles.css?v=18" />
+    <link rel="stylesheet" href="styles.css?v=21" />
   </head>
   <body>
     <div class="app">
       <aside class="sidebar" aria-label="Danh sách unit">
         <div class="brand">
-          <span class="brand-mark">B1</span>
+          <button class="account-button" id="accountButton" type="button" aria-expanded="false">
+            <span class="account-avatar" id="accountAvatar">B1</span>
+            <span class="account-button-text" id="accountButtonText">Đăng nhập / Đăng kí</span>
+          </button>
           <div>
             <strong>Vocabulary Trainer</strong>
             <span>PDF study companion</span>
           </div>
+        </div>
+
+        <div class="account-menu hidden" id="accountMenu">
+          <div class="account-menu-head">
+            <span class="account-avatar large" id="accountMenuAvatar">B1</span>
+            <div>
+              <strong id="userNameLabel">Chưa đăng nhập</strong>
+              <span id="accountSyncLabel">Chưa đồng bộ</span>
+            </div>
+          </div>
+          <label class="mini-file-button">
+            Chọn ảnh đại diện
+            <input id="avatarInput" type="file" accept="image/*" />
+          </label>
+          <button class="ghost-button" id="removeAvatarButton" type="button">Xóa ảnh đại diện</button>
+          <button class="ghost-button" id="logoutButton" type="button">Đăng xuất</button>
         </div>
 
         <nav class="mode-tabs top-bar" aria-label="Chế độ học">
@@ -345,6 +364,39 @@
       </main>
     </div>
 
-    <script src="app.js?v=18"></script>
+    <div class="auth-overlay hidden" id="authOverlay" role="dialog" aria-modal="true">
+      <form class="auth-card" id="authForm">
+        <p class="eyebrow">Account</p>
+        <h2>Đăng nhập để lưu dữ liệu học</h2>
+        <p class="panel-note">
+          Dữ liệu import, tiến độ và API key sẽ đi theo tài khoản này trên các thiết bị. PDF vẫn lưu riêng trong từng trình duyệt.
+        </p>
+        <label>
+          Tên tài khoản
+          <input id="authUsernameInput" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          Mật khẩu
+          <input id="authPasswordInput" type="password" autocomplete="current-password" required />
+        </label>
+        <label>
+          Account API URL
+          <input
+            id="accountApiUrlInput"
+            type="url"
+            autocomplete="off"
+            placeholder="https://english-vocab-account-api.<ten-cua-ban>.workers.dev"
+          />
+        </label>
+        <div class="auth-actions">
+          <button class="primary-button" id="loginButton" type="submit">Đăng nhập</button>
+          <button class="ghost-button" id="registerButton" type="button">Tạo tài khoản</button>
+          <button class="ghost-button" id="authCancelButton" type="button">Để sau</button>
+        </div>
+        <p class="feedback" id="authStatus" aria-live="polite"></p>
+      </form>
+    </div>
+
+    <script src="app.js?v=21"></script>
   </body>
 </html>
