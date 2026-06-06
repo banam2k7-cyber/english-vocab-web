@@ -1544,6 +1544,12 @@ function renderAuthState() {
   els.authOverlay.classList.add("hidden");
   els.accountMenu.classList.add("hidden");
   els.accountButton.setAttribute("aria-expanded", "false");
+  els.accountButton.classList.toggle("logged-in", isLoggedIn);
+  els.accountButton.setAttribute(
+    "aria-label",
+    isLoggedIn ? `Tài khoản ${state.currentUser}` : "Đăng nhập hoặc đăng kí"
+  );
+  els.accountButton.title = isLoggedIn ? state.currentUser : "Đăng nhập / Đăng kí";
   els.logoutButton.classList.toggle("hidden", !isLoggedIn);
   els.removeAvatarButton.classList.toggle("hidden", !isLoggedIn || !avatarDataUrl);
   els.accountButtonText.textContent = isLoggedIn ? state.currentUser : "Đăng nhập / Đăng kí";

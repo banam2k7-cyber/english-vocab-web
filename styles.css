@@ -109,8 +109,13 @@ select:focus {
   margin-bottom: 0;
 }
 
+.brand > div {
+  min-width: 0;
+}
+
 .account-button {
   display: flex;
+  flex: 0 0 auto;
   gap: 8px;
   align-items: center;
   min-height: 40px;
@@ -120,6 +125,16 @@ select:focus {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
+}
+
+.account-button.logged-in {
+  width: 40px;
+  max-width: 40px;
+  padding: 1px;
+}
+
+.account-button.logged-in .account-button-text {
+  display: none;
 }
 
 .account-button:hover,
@@ -169,6 +184,8 @@ select:focus {
 .brand strong,
 .brand > div > span {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -249,8 +266,7 @@ select:focus {
 
 .unit-picker {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   margin-bottom: 0;
   color: var(--sidebar-text);
