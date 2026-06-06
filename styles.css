@@ -81,6 +81,7 @@ select:focus {
 .app {
   display: grid;
   grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -89,10 +90,10 @@ select:focus {
   top: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: minmax(210px, 260px) minmax(440px, 1fr) minmax(260px, 360px) 40px;
+  grid-template-columns: minmax(210px, 260px) minmax(440px, 1fr) minmax(220px, 300px) 40px;
   gap: 12px;
   align-items: center;
-  height: auto;
+  height: 64px;
   overflow: visible;
   padding: 8px 16px;
   color: var(--sidebar-text);
